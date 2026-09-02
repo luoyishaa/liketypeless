@@ -16,6 +16,7 @@ class AppSettings(BaseModel):
     stt_beam_size: int = 1
     stt_without_timestamps: bool = True
     stt_vad_filter: bool = False
+    stt_chunk_seconds: int = 90
     sensevoice_python: str = str(Path(__file__).resolve().parents[3] / ".venv-asr-py312" / "Scripts" / "python.exe")
     sensevoice_runner: str = str(Path(__file__).resolve().parents[1] / "scripts" / "sensevoice_runner.py")
     llm_num_predict: int = 220
@@ -50,6 +51,7 @@ settings = AppSettings(
     stt_beam_size=int(os.getenv("LIKETYPELESS_STT_BEAM_SIZE", "1")),
     stt_without_timestamps=os.getenv("LIKETYPELESS_STT_WITHOUT_TIMESTAMPS", "1") != "0",
     stt_vad_filter=os.getenv("LIKETYPELESS_STT_VAD_FILTER", "0") == "1",
+    stt_chunk_seconds=max(0, int(os.getenv("LIKETYPELESS_STT_CHUNK_SECONDS", "90"))),
     sensevoice_python=os.getenv(
         "LIKETYPELESS_SENSEVOICE_PYTHON",
         str(Path(__file__).resolve().parents[3] / ".venv-asr-py312" / "Scripts" / "python.exe"),

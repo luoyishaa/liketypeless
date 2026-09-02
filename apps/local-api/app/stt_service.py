@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 import threading
 from time import perf_counter
 from typing import Protocol
@@ -61,14 +62,11 @@ class LocalFasterWhisperProvider:
         selected_language = language or settings.stt_language
 
         try:
-            segments_iter, info = self._transcribe_with_optional_vad(model, file_path, selected_language)
-            segments = self._collect_segments(segments_iter)
+            segments, detected_language, duration = self._transcribe_audio(model, file_path, selected_language)
         except Exception as exc:
             raise STTError(f"faster-whisper transcription failed: {exc}") from exc
 
         text = self._normalize_chinese("".join(segment.text for segment in segments).strip())
-        detected_language = str(getattr(info, "language", selected_language) or selected_language)
-        duration = float(getattr(info, "duration", 0.0) or 0.0)
 
         return TranscriptionResult(
             provider=self.provider_name,
@@ -79,6 +77,72 @@ class LocalFasterWhisperProvider:
             elapsed_ms=round((perf_counter() - started_at) * 1000),
             segments=segments,
         )
+
+    def _transcribe_audio(self, model, file_path: Path, language: str) -> tuple[list[TranscriptSegment], str, float]:
+        duration = self._audio_duration_seconds(file_path)
+        chunk_seconds = settings.stt_chunk_seconds
+        if chunk_seconds <= 0 or duration <= chunk_seconds:
+            return self._transcribe_single_file(model, file_path, language)
+
+        return self._transcribe_in_chunks(model, file_path, language, duration, chunk_seconds)
+
+    def _transcribe_single_file(self, model, file_path: Path, language: str) -> tuple[list[TranscriptSegment], str, float]:
+        segments_iter, info = self._transcribe_with_optional_vad(model, file_path, language)
+        return (
+            self._collect_segments(segments_iter),
+            str(getattr(info, "language", language) or language),
+            float(getattr(info, "duration", 0.0) or 0.0),
+        )
+
+    def _transcribe_in_chunks(
+        self, model, file_path: Path, language: str, duration: float, chunk_seconds: int
+    ) -> tuple[list[TranscriptSegment], str, float]:
+        all_segments: list[TranscriptSegment] = []
+        detected_language = language
+        with tempfile.TemporaryDirectory(prefix="liketypeless-stt-") as temporary_directory:
+            for offset_seconds, chunk_path in self._write_wav_chunks(file_path, Path(temporary_directory), chunk_seconds):
+                segments, chunk_language, _chunk_duration = self._transcribe_single_file(model, chunk_path, detected_language)
+                detected_language = chunk_language or detected_language
+                all_segments.extend(
+                    TranscriptSegment(
+                        start=segment.start + offset_seconds,
+                        end=segment.end + offset_seconds,
+                        text=segment.text,
+                    )
+                    for segment in segments
+                )
+
+        return all_segments, detected_language, duration
+
+    def _audio_duration_seconds(self, file_path: Path) -> float:
+        try:
+            import soundfile as sf
+
+            return float(sf.info(str(file_path)).duration)
+        except Exception:
+            return 0.0
+
+    def _write_wav_chunks(self, file_path: Path, output_directory: Path, chunk_seconds: int):
+        try:
+            import soundfile as sf
+        except ImportError as exc:
+            raise STTError("soundfile is required for long-recording chunk transcription") from exc
+
+        with sf.SoundFile(str(file_path)) as source:
+            sample_rate = source.samplerate
+            frames_per_chunk = sample_rate * chunk_seconds
+            offset_frames = 0
+            index = 0
+            while offset_frames < len(source):
+                source.seek(offset_frames)
+                audio_frames = source.read(frames_per_chunk, dtype="float32", always_2d=True)
+                if len(audio_frames) == 0:
+                    break
+                chunk_path = output_directory / f"chunk-{index:04d}.wav"
+                sf.write(str(chunk_path), audio_frames, sample_rate, subtype="PCM_16")
+                yield offset_frames / sample_rate, chunk_path
+                offset_frames += len(audio_frames)
+                index += 1
 
     def _transcribe_with_optional_vad(self, model, file_path: Path, language: str):
         if not settings.stt_vad_filter:
