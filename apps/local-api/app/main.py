@@ -10,6 +10,7 @@ from .config import settings
 from .ollama_client import is_ollama_reachable
 from .structure_service import structure_text_hybrid
 from .stt_service import STTError, get_stt_provider, stt_provider
+from .translation_service import translate_chinese_to_english
 
 
 class StructureRequest(BaseModel):
@@ -92,6 +93,10 @@ class VoiceFinishResponse(BaseModel):
     sttElapsedMs: int
     llmElapsedMs: int
     totalElapsedMs: int
+
+
+class VoiceFinishRequest(BaseModel):
+    outputMode: str = "zh"
 
 
 class VoiceTranscribeResponse(BaseModel):
@@ -246,7 +251,7 @@ def preview_voice_recording() -> VoicePreviewResponse:
 
 
 @app.post("/voice/recording/finish", response_model=VoiceFinishResponse)
-def finish_voice_recording() -> VoiceFinishResponse:
+def finish_voice_recording(request: VoiceFinishRequest | None = None) -> VoiceFinishResponse:
     total_started_at = perf_counter()
     stop_started_at = perf_counter()
     try:
@@ -272,6 +277,15 @@ def finish_voice_recording() -> VoiceFinishResponse:
         structured_text = structure_result.text
         structure_model = structure_result.provider
         structure_elapsed_ms = round((perf_counter() - structure_started_at) * 1000)
+
+    output_mode = request.outputMode if request else "zh"
+    if output_mode == "zh-to-en" and structured_text:
+        translation_started_at = perf_counter()
+        try:
+            structured_text, structure_model = translate_chinese_to_english(structured_text)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        structure_elapsed_ms += round((perf_counter() - translation_started_at) * 1000)
 
     return VoiceFinishResponse(
         audioFilePath=audio_file_path,

@@ -16,6 +16,7 @@ import "./styles.css";
 type DesktopSettings = {
   globalHotkey: string;
   inputDeviceId: number | null;
+  outputMode: "zh" | "zh-to-en";
 };
 
 declare global {
@@ -266,11 +267,28 @@ function App(): React.ReactElement {
               onChange={(event) =>
                 setDesktopSettings((current) => ({
                   globalHotkey: event.target.value,
-                  inputDeviceId: current?.inputDeviceId ?? null
+                  inputDeviceId: current?.inputDeviceId ?? null,
+                  outputMode: current?.outputMode ?? "zh"
                 }))
               }
               onBlur={() => desktopSettings && void saveSettings(desktopSettings)}
             />
+          </label>
+          <label>
+            Voice output
+            <select
+              value={desktopSettings?.outputMode ?? "zh"}
+              onChange={(event) =>
+                desktopSettings &&
+                void saveSettings({
+                  ...desktopSettings,
+                  outputMode: event.target.value === "zh-to-en" ? "zh-to-en" : "zh"
+                })
+              }
+            >
+              <option value="zh">Chinese structured text</option>
+              <option value="zh-to-en">Chinese speech to English</option>
+            </select>
           </label>
           <label>
             Input device

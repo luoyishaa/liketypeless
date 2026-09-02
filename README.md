@@ -201,6 +201,8 @@ npm run dev:desktop
 
 也可以直接在主窗口的 **Global hotkey** 和 **Input device** 设置中修改。快捷键会立即尝试重新注册；输入设备会在下一次开始录音时生效。设置保存在当前 Windows 用户的 Electron 数据目录中，不会写入仓库或上传网络。
 
+**Voice output** 可选择“Chinese structured text”或“Chinese speech to English”。后者先转写并保守整理中文，再通过本地 Ollama 翻译为英文；翻译服务不可用时会报错，不会静默粘贴未翻译文本。
+
 ## 验证
 
 运行 TypeScript 检查：
@@ -313,7 +315,7 @@ scripts/
 - [x] 实时转写预览
 - [x] 可配置快捷键和输入设备界面
 - [ ] 浏览器和文档划线翻译
-- [ ] 中文转英文语音输入模式
+- [x] 中文转英文语音输入模式
 - [ ] 打包安装程序和首次启动检查
 
 ## 协作

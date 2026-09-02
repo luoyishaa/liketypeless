@@ -5,11 +5,13 @@ import { join } from "node:path";
 export type DesktopSettings = {
   globalHotkey: string;
   inputDeviceId: number | null;
+  outputMode: "zh" | "zh-to-en";
 };
 
 const DEFAULT_SETTINGS: DesktopSettings = {
   globalHotkey: process.env.LIKETYPELESS_GLOBAL_HOTKEY ?? "Shift+Space",
-  inputDeviceId: null
+  inputDeviceId: null,
+  outputMode: "zh"
 };
 
 function settingsPath(): string {
@@ -19,7 +21,8 @@ function settingsPath(): string {
 function normalize(candidate: Partial<DesktopSettings>): DesktopSettings {
   return {
     globalHotkey: candidate.globalHotkey?.trim() || DEFAULT_SETTINGS.globalHotkey,
-    inputDeviceId: Number.isInteger(candidate.inputDeviceId) ? candidate.inputDeviceId ?? null : null
+    inputDeviceId: Number.isInteger(candidate.inputDeviceId) ? candidate.inputDeviceId ?? null : null,
+    outputMode: candidate.outputMode === "zh-to-en" ? "zh-to-en" : "zh"
   };
 }
 

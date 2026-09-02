@@ -35,7 +35,7 @@ let isQuitting = false;
 let hotkeyWorkflowRunning = false;
 let targetWindowHandle: string | null = null;
 let statusOverlayTimer: ReturnType<typeof setTimeout> | null = null;
-let desktopSettings: DesktopSettings = { globalHotkey: "Shift+Space", inputDeviceId: null };
+let desktopSettings: DesktopSettings = { globalHotkey: "Shift+Space", inputDeviceId: null, outputMode: "zh" };
 
 type StatusOverlayState = "recording" | "processing" | "success" | "error";
 
@@ -237,7 +237,8 @@ ipcMain.handle("settings:update", async (_event, next: DesktopSettings): Promise
 
   desktopSettings = await saveDesktopSettings({
     globalHotkey: requestedHotkey,
-    inputDeviceId: Number.isInteger(next.inputDeviceId) ? next.inputDeviceId : null
+    inputDeviceId: Number.isInteger(next.inputDeviceId) ? next.inputDeviceId : null,
+    outputMode: next.outputMode === "zh-to-en" ? "zh-to-en" : "zh"
   });
   createTray();
   return desktopSettings;
@@ -260,7 +261,7 @@ ipcMain.handle("api:preview-voice-recording", async (): Promise<VoicePreviewResp
 });
 
 ipcMain.handle("api:finish-voice-recording", async (): Promise<VoiceFinishResponse> => {
-  return postJson<VoiceFinishResponse>("/voice/recording/finish");
+  return postJson<VoiceFinishResponse>("/voice/recording/finish", { outputMode: desktopSettings.outputMode });
 });
 
 ipcMain.handle("api:structure", async (_event, text: string): Promise<StructureResponse> => {
@@ -290,7 +291,7 @@ async function handleGlobalHotkey(): Promise<void> {
     }
 
     showStatusOverlay("processing");
-    const result = await postJson<VoiceFinishResponse>("/voice/recording/finish");
+    const result = await postJson<VoiceFinishResponse>("/voice/recording/finish", { outputMode: desktopSettings.outputMode });
     const text = result.structuredText.trim() || result.transcript.trim();
     if (!text) {
       throw new Error("语音识别没有返回文本");
