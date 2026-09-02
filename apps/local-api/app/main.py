@@ -43,6 +43,10 @@ class RecordingStatus(BaseModel):
     channels: int
 
 
+class StartRecordingRequest(BaseModel):
+    deviceId: int | None = None
+
+
 class StopRecordingResponse(BaseModel):
     filePath: str
     durationSeconds: float
@@ -146,9 +150,9 @@ def recording_status() -> RecordingStatus:
 
 
 @app.post("/audio/recording/start", response_model=RecordingStatus)
-def start_recording() -> RecordingStatus:
+def start_recording(request: StartRecordingRequest | None = None) -> RecordingStatus:
     try:
-        return RecordingStatus(**recorder.start())
+        return RecordingStatus(**recorder.start(device_id=request.deviceId if request else None))
     except AudioRecorderError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception as exc:

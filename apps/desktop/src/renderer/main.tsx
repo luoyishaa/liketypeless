@@ -13,6 +13,11 @@ import type {
 } from "@liketypeless/shared";
 import "./styles.css";
 
+type DesktopSettings = {
+  globalHotkey: string;
+  inputDeviceId: number | null;
+};
+
 declare global {
   interface Window {
     liketypeless: {
@@ -26,6 +31,8 @@ declare global {
       previewVoiceRecording: () => Promise<VoicePreviewResponse>;
       finishVoiceRecording: () => Promise<VoiceFinishResponse>;
       structure: (text: string) => Promise<StructureResponse>;
+      settings: () => Promise<DesktopSettings>;
+      updateSettings: (settings: DesktopSettings) => Promise<DesktopSettings>;
     };
   }
 }
@@ -46,6 +53,7 @@ function App(): React.ReactElement {
   const [lastVoiceFinish, setLastVoiceFinish] = useState<VoiceFinishResponse | null>(null);
   const [lastVoiceTranscription, setLastVoiceTranscription] = useState<VoiceTranscribeResponse | null>(null);
   const [livePreview, setLivePreview] = useState<VoicePreviewResponse | null>(null);
+  const [desktopSettings, setDesktopSettings] = useState<DesktopSettings | null>(null);
   const [input, setInput] = useState(sampleText);
   const [result, setResult] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -56,11 +64,21 @@ function App(): React.ReactElement {
     void Promise.all([
       window.liketypeless.health().then(setHealth),
       window.liketypeless.audioDevices().then(setDevices),
-      window.liketypeless.recordingStatus().then(setRecordingStatus)
+      window.liketypeless.recordingStatus().then(setRecordingStatus),
+      window.liketypeless.settings().then(setDesktopSettings)
     ]).catch((unknownError: unknown) => {
       setError(unknownError instanceof Error ? unknownError.message : String(unknownError));
     });
   }, []);
+
+  async function saveSettings(next: DesktopSettings): Promise<void> {
+    setError(null);
+    try {
+      setDesktopSettings(await window.liketypeless.updateSettings(next));
+    } catch (unknownError) {
+      setError(unknownError instanceof Error ? unknownError.message : String(unknownError));
+    }
+  }
 
   useEffect(() => {
     if (!recordingStatus?.isRecording || isLoading || isRecordingActionRunning) {
@@ -238,6 +256,42 @@ function App(): React.ReactElement {
         <div className="section-heading">
           <label>Audio recording</label>
           <span>{devices.length} input device(s)</span>
+        </div>
+        <div className="settings-grid">
+          <label>
+            Global hotkey
+            <input
+              value={desktopSettings?.globalHotkey ?? ""}
+              placeholder="Shift+Space"
+              onChange={(event) =>
+                setDesktopSettings((current) => ({
+                  globalHotkey: event.target.value,
+                  inputDeviceId: current?.inputDeviceId ?? null
+                }))
+              }
+              onBlur={() => desktopSettings && void saveSettings(desktopSettings)}
+            />
+          </label>
+          <label>
+            Input device
+            <select
+              value={desktopSettings?.inputDeviceId ?? "default"}
+              onChange={(event) =>
+                desktopSettings &&
+                void saveSettings({
+                  ...desktopSettings,
+                  inputDeviceId: event.target.value === "default" ? null : Number(event.target.value)
+                })
+              }
+            >
+              <option value="default">System default</option>
+              {devices.map((device) => (
+                <option key={device.id} value={device.id}>
+                  {device.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <div className="button-row">
           <button

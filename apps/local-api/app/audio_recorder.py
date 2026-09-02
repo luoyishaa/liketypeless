@@ -55,14 +55,14 @@ class AudioRecorder:
                 "channels": self.channels,
             }
 
-    def start(self) -> dict[str, Any]:
+    def start(self, device_id: int | None = None) -> dict[str, Any]:
         with self._lock:
             if self._stream is not None:
                 raise AudioRecorderError("Recording is already active.")
 
             self._chunks = []
             self._started_at = time.time()
-            stream, sample_rate = self._create_stream()
+            stream, sample_rate = self._create_stream(device_id)
             stream.start()
             self._stream = stream
             self.active_sample_rate = sample_rate
@@ -122,28 +122,30 @@ class AudioRecorder:
             "durationSeconds": float(len(audio) / sample_rate),
         }
 
-    def _create_stream(self) -> tuple[sd.InputStream, int]:
+    def _create_stream(self, device_id: int | None) -> tuple[sd.InputStream, int]:
         try:
             stream = sd.InputStream(
                 samplerate=self.preferred_sample_rate,
                 channels=self.channels,
                 dtype="float32",
+                device=device_id,
                 callback=self._on_audio,
             )
             return stream, self.preferred_sample_rate
         except Exception:
-            default_sample_rate = self._default_input_sample_rate()
+            default_sample_rate = self._default_input_sample_rate(device_id)
             stream = sd.InputStream(
                 samplerate=default_sample_rate,
                 channels=self.channels,
                 dtype="float32",
+                device=device_id,
                 callback=self._on_audio,
             )
             return stream, default_sample_rate
 
-    def _default_input_sample_rate(self) -> int:
+    def _default_input_sample_rate(self, device_id: int | None) -> int:
         try:
-            device = sd.query_devices(kind="input")
+            device = sd.query_devices(device=device_id, kind="input")
             sample_rate = int(device.get("default_samplerate", 44_100))
         except Exception:
             sample_rate = 44_100

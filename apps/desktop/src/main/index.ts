@@ -24,11 +24,10 @@ import {
   type VoiceTranscribeResponse
 } from "@liketypeless/shared";
 import { getForegroundWindowHandle, pasteIntoWindow } from "./windows-input";
+import { loadDesktopSettings, saveDesktopSettings, type DesktopSettings } from "./settings-store";
 
 const API_BASE_URL = process.env.LIKETYPELESS_API_BASE_URL ?? DEFAULT_API_BASE_URL;
 const RENDERER_DEV_URL = process.env.ELECTRON_RENDERER_URL ?? "http://localhost:5173";
-const GLOBAL_HOTKEY = process.env.LIKETYPELESS_GLOBAL_HOTKEY ?? "Shift+Space";
-
 let mainWindow: BrowserWindow | null = null;
 let statusOverlay: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -36,11 +35,12 @@ let isQuitting = false;
 let hotkeyWorkflowRunning = false;
 let targetWindowHandle: string | null = null;
 let statusOverlayTimer: ReturnType<typeof setTimeout> | null = null;
+let desktopSettings: DesktopSettings = { globalHotkey: "Shift+Space", inputDeviceId: null };
 
 type StatusOverlayState = "recording" | "processing" | "success" | "error";
 
 const STATUS_OVERLAY_COPY: Record<StatusOverlayState, { title: string; detail: string }> = {
-  recording: { title: "正在录音", detail: `再次按 ${GLOBAL_HOTKEY} 结束` },
+  recording: { title: "正在录音", detail: "再次按快捷键结束" },
   processing: { title: "正在处理", detail: "转写并整理语音内容" },
   success: { title: "已输入", detail: "文本已粘贴到原输入框" },
   error: { title: "处理失败", detail: "请检查录音、模型或服务状态" }
@@ -152,6 +152,7 @@ function showMainWindow(): void {
 }
 
 function createTray(): void {
+  tray?.destroy();
   const icon = nativeImage.createEmpty();
   tray = new Tray(icon);
   tray.setToolTip("liketypeless");
@@ -162,7 +163,7 @@ function createTray(): void {
         click: showMainWindow
       },
       {
-        label: `Hotkey: ${GLOBAL_HOTKEY}`,
+        label: `Hotkey: ${desktopSettings.globalHotkey}`,
         enabled: false
       },
       { type: "separator" },
@@ -215,7 +216,31 @@ ipcMain.handle("api:recording-status", async (): Promise<RecordingStatus> => {
 });
 
 ipcMain.handle("api:start-recording", async (): Promise<RecordingStatus> => {
-  return postJson<RecordingStatus>("/audio/recording/start");
+  return postJson<RecordingStatus>("/audio/recording/start", { deviceId: desktopSettings.inputDeviceId });
+});
+
+ipcMain.handle("settings:get", (): DesktopSettings => desktopSettings);
+
+ipcMain.handle("settings:update", async (_event, next: DesktopSettings): Promise<DesktopSettings> => {
+  const requestedHotkey = next.globalHotkey.trim();
+  if (!requestedHotkey) {
+    throw new Error("快捷键不能为空");
+  }
+
+  if (requestedHotkey !== desktopSettings.globalHotkey) {
+    globalShortcut.unregister(desktopSettings.globalHotkey);
+    if (!globalShortcut.register(requestedHotkey, () => void handleGlobalHotkey())) {
+      globalShortcut.register(desktopSettings.globalHotkey, () => void handleGlobalHotkey());
+      throw new Error(`无法注册快捷键：${requestedHotkey}`);
+    }
+  }
+
+  desktopSettings = await saveDesktopSettings({
+    globalHotkey: requestedHotkey,
+    inputDeviceId: Number.isInteger(next.inputDeviceId) ? next.inputDeviceId : null
+  });
+  createTray();
+  return desktopSettings;
 });
 
 ipcMain.handle("api:stop-recording", async (): Promise<StopRecordingResponse> => {
@@ -258,9 +283,9 @@ async function handleGlobalHotkey(): Promise<void> {
   try {
     if (!targetWindowHandle) {
       targetWindowHandle = await getForegroundWindowHandle();
-      await postJson<RecordingStatus>("/audio/recording/start");
+      await postJson<RecordingStatus>("/audio/recording/start", { deviceId: desktopSettings.inputDeviceId });
       showStatusOverlay("recording");
-      notify("liketypeless", `开始录音，再按 ${GLOBAL_HOTKEY} 结束`);
+      notify("liketypeless", `开始录音，再按 ${desktopSettings.globalHotkey} 结束`);
       return;
     }
 
@@ -295,19 +320,20 @@ async function handleGlobalHotkey(): Promise<void> {
 }
 
 function registerGlobalHotkey(): void {
-  const registered = globalShortcut.register(GLOBAL_HOTKEY, () => {
+  const registered = globalShortcut.register(desktopSettings.globalHotkey, () => {
     void handleGlobalHotkey();
   });
 
   if (!registered) {
-    console.error(`Unable to register global hotkey: ${GLOBAL_HOTKEY}`);
-    notify("liketypeless", `快捷键注册失败：${GLOBAL_HOTKEY}`);
+    console.error(`Unable to register global hotkey: ${desktopSettings.globalHotkey}`);
+    notify("liketypeless", `快捷键注册失败：${desktopSettings.globalHotkey}`);
   } else {
-    console.log(`Global hotkey registered: ${GLOBAL_HOTKEY}`);
+    console.log(`Global hotkey registered: ${desktopSettings.globalHotkey}`);
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  desktopSettings = await loadDesktopSettings();
   createWindow();
   createTray();
   registerGlobalHotkey();

@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { DesktopSettings } from "../main/settings-store";
 import type {
   AudioDevice,
   HealthResponse,
@@ -22,6 +23,8 @@ export type LikeTypelessApi = {
   previewVoiceRecording: () => Promise<VoicePreviewResponse>;
   finishVoiceRecording: () => Promise<VoiceFinishResponse>;
   structure: (text: string) => Promise<StructureResponse>;
+  settings: () => Promise<DesktopSettings>;
+  updateSettings: (settings: DesktopSettings) => Promise<DesktopSettings>;
 };
 
 const api: LikeTypelessApi = {
@@ -36,7 +39,9 @@ const api: LikeTypelessApi = {
     ipcRenderer.invoke("api:transcribe-voice-recording") as Promise<VoiceTranscribeResponse>,
   previewVoiceRecording: () => ipcRenderer.invoke("api:preview-voice-recording") as Promise<VoicePreviewResponse>,
   finishVoiceRecording: () => ipcRenderer.invoke("api:finish-voice-recording") as Promise<VoiceFinishResponse>,
-  structure: (text: string) => ipcRenderer.invoke("api:structure", text) as Promise<StructureResponse>
+  structure: (text: string) => ipcRenderer.invoke("api:structure", text) as Promise<StructureResponse>,
+  settings: () => ipcRenderer.invoke("settings:get") as Promise<DesktopSettings>,
+  updateSettings: (settings: DesktopSettings) => ipcRenderer.invoke("settings:update", settings) as Promise<DesktopSettings>
 };
 
 contextBridge.exposeInMainWorld("liketypeless", api);

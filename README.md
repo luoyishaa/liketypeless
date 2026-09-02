@@ -199,6 +199,8 @@ $env:LIKETYPELESS_GLOBAL_HOTKEY="Ctrl+Shift+Space"
 npm run dev:desktop
 ```
 
+也可以直接在主窗口的 **Global hotkey** 和 **Input device** 设置中修改。快捷键会立即尝试重新注册；输入设备会在下一次开始录音时生效。设置保存在当前 Windows 用户的 Electron 数据目录中，不会写入仓库或上传网络。
+
 ## 验证
 
 运行 TypeScript 检查：
@@ -309,7 +311,7 @@ scripts/
 - [x] 录音状态悬浮窗
 - [x] 长录音分块转写
 - [x] 实时转写预览
-- [ ] 可配置快捷键和输入设备界面
+- [x] 可配置快捷键和输入设备界面
 - [ ] 浏览器和文档划线翻译
 - [ ] 中文转英文语音输入模式
 - [ ] 打包安装程序和首次启动检查
