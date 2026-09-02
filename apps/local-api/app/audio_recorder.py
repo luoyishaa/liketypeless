@@ -107,6 +107,21 @@ class AudioRecorder:
             "audioPeak": audio_peak,
         }
 
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            if self._stream is None:
+                raise AudioRecorderError("Recording is not active.")
+            if not self._chunks:
+                raise AudioRecorderError("Recording has not captured audio yet.")
+            audio = np.concatenate(self._chunks, axis=0)
+            sample_rate = self.active_sample_rate
+
+        file_path = self._write_wav(audio, directory_name="previews")
+        return {
+            "filePath": str(file_path),
+            "durationSeconds": float(len(audio) / sample_rate),
+        }
+
     def _create_stream(self) -> tuple[sd.InputStream, int]:
         try:
             stream = sd.InputStream(
@@ -150,8 +165,9 @@ class AudioRecorder:
             if self._stream is not None:
                 self._chunks.append(indata.copy())
 
-    def _write_wav(self, audio: np.ndarray[Any, np.dtype[np.float32]]) -> Path:
-        self.recordings_dir.mkdir(parents=True, exist_ok=True)
-        file_path = self.recordings_dir / f"{uuid.uuid4().hex}.wav"
+    def _write_wav(self, audio: np.ndarray[Any, np.dtype[np.float32]], directory_name: str | None = None) -> Path:
+        output_directory = self.recordings_dir / directory_name if directory_name else self.recordings_dir
+        output_directory.mkdir(parents=True, exist_ok=True)
+        file_path = output_directory / f"{uuid.uuid4().hex}.wav"
         sf.write(file_path, audio, self.active_sample_rate, subtype="PCM_16")
         return file_path

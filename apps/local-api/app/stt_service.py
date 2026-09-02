@@ -46,6 +46,7 @@ class LocalFasterWhisperProvider:
     provider_name = "local-faster-whisper"
 
     def __init__(self) -> None:
+        self._lock = threading.Lock()
         self._model = None
         self._loaded_model_name: str | None = None
         self._loaded_device: str | None = None
@@ -58,13 +59,13 @@ class LocalFasterWhisperProvider:
             raise STTError(f"Audio file does not exist: {file_path}")
 
         started_at = perf_counter()
-        model = self._load_model()
         selected_language = language or settings.stt_language
-
-        try:
-            segments, detected_language, duration = self._transcribe_audio(model, file_path, selected_language)
-        except Exception as exc:
-            raise STTError(f"faster-whisper transcription failed: {exc}") from exc
+        with self._lock:
+            try:
+                model = self._load_model()
+                segments, detected_language, duration = self._transcribe_audio(model, file_path, selected_language)
+            except Exception as exc:
+                raise STTError(f"faster-whisper transcription failed: {exc}") from exc
 
         text = self._normalize_chinese("".join(segment.text for segment in segments).strip())
 

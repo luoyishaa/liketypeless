@@ -20,6 +20,7 @@ import {
   type StructureResponse,
   type TranscribeResponse,
   type VoiceFinishResponse,
+  type VoicePreviewResponse,
   type VoiceTranscribeResponse
 } from "@liketypeless/shared";
 import { getForegroundWindowHandle, pasteIntoWindow } from "./windows-input";
@@ -227,6 +228,10 @@ ipcMain.handle("api:transcribe", async (_event, filePath: string, provider?: str
 
 ipcMain.handle("api:transcribe-voice-recording", async (): Promise<VoiceTranscribeResponse> => {
   return postJson<VoiceTranscribeResponse>("/voice/recording/transcribe");
+});
+
+ipcMain.handle("api:preview-voice-recording", async (): Promise<VoicePreviewResponse> => {
+  return postJson<VoicePreviewResponse>("/voice/recording/preview");
 });
 
 ipcMain.handle("api:finish-voice-recording", async (): Promise<VoiceFinishResponse> => {

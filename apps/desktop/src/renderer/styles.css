@@ -137,6 +137,33 @@ button:disabled {
   font-size: 14px;
 }
 
+.live-preview {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #b2ddff;
+  border-radius: 8px;
+  padding: 12px;
+  background: #eff8ff;
+  color: #175cd3;
+}
+
+.live-preview div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.live-preview span {
+  color: #475467;
+}
+
+.live-preview p {
+  margin: 0;
+  color: #1d2939;
+  line-height: 1.5;
+}
+
 .device-list {
   display: grid;
   gap: 8px;

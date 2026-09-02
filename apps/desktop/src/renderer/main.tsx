@@ -8,6 +8,7 @@ import type {
   StructureResponse,
   TranscribeResponse,
   VoiceFinishResponse,
+  VoicePreviewResponse,
   VoiceTranscribeResponse
 } from "@liketypeless/shared";
 import "./styles.css";
@@ -22,6 +23,7 @@ declare global {
       stopRecording: () => Promise<StopRecordingResponse>;
       transcribe: (filePath: string, provider?: string) => Promise<TranscribeResponse>;
       transcribeVoiceRecording: () => Promise<VoiceTranscribeResponse>;
+      previewVoiceRecording: () => Promise<VoicePreviewResponse>;
       finishVoiceRecording: () => Promise<VoiceFinishResponse>;
       structure: (text: string) => Promise<StructureResponse>;
     };
@@ -43,6 +45,7 @@ function App(): React.ReactElement {
   const [lastTranscription, setLastTranscription] = useState<TranscribeResponse | null>(null);
   const [lastVoiceFinish, setLastVoiceFinish] = useState<VoiceFinishResponse | null>(null);
   const [lastVoiceTranscription, setLastVoiceTranscription] = useState<VoiceTranscribeResponse | null>(null);
+  const [livePreview, setLivePreview] = useState<VoicePreviewResponse | null>(null);
   const [input, setInput] = useState(sampleText);
   const [result, setResult] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -58,6 +61,42 @@ function App(): React.ReactElement {
       setError(unknownError instanceof Error ? unknownError.message : String(unknownError));
     });
   }, []);
+
+  useEffect(() => {
+    if (!recordingStatus?.isRecording || isLoading || isRecordingActionRunning) {
+      setLivePreview(null);
+      return;
+    }
+
+    let cancelled = false;
+    let nextPreviewTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const refreshPreview = async (): Promise<void> => {
+      try {
+        const response = await window.liketypeless.previewVoiceRecording();
+        if (!cancelled) {
+          setLivePreview(response);
+        }
+      } catch (unknownError) {
+        const message = unknownError instanceof Error ? unknownError.message : String(unknownError);
+        if (!cancelled && !message.includes("Recording has not captured audio yet")) {
+          setError(message);
+        }
+      } finally {
+        if (!cancelled) {
+          nextPreviewTimer = setTimeout(() => void refreshPreview(), 3000);
+        }
+      }
+    };
+
+    void refreshPreview();
+    return () => {
+      cancelled = true;
+      if (nextPreviewTimer) {
+        clearTimeout(nextPreviewTimer);
+      }
+    };
+  }, [isLoading, isRecordingActionRunning, recordingStatus?.isRecording]);
 
   async function handleStructure(): Promise<void> {
     setIsLoading(true);
@@ -254,6 +293,17 @@ function App(): React.ReactElement {
           <span>Sample rate: {recordingStatus?.sampleRate ?? 16000} Hz</span>
           <span>Channels: {recordingStatus?.channels ?? 1}</span>
         </div>
+        {livePreview ? (
+          <div className="live-preview" aria-live="polite">
+            <div>
+              <strong>Live preview</strong>
+              <span>
+                {livePreview.sttProvider} · {livePreview.sttElapsedMs} ms · {livePreview.durationSeconds.toFixed(1)} s
+              </span>
+            </div>
+            <p>{livePreview.transcript || "Listening..."}</p>
+          </div>
+        ) : null}
         {devices.length > 0 ? (
           <ul className="device-list">
             {devices.map((device) => (

@@ -87,3 +87,11 @@ export type VoiceTranscribeResponse = {
   sttElapsedMs: number;
   totalElapsedMs: number;
 };
+
+export type VoicePreviewResponse = {
+  durationSeconds: number;
+  transcript: string;
+  sttProvider: string;
+  sttModel: string;
+  sttElapsedMs: number;
+};

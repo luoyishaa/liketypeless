@@ -103,6 +103,14 @@ class VoiceTranscribeResponse(BaseModel):
     totalElapsedMs: int
 
 
+class VoicePreviewResponse(BaseModel):
+    durationSeconds: float
+    transcript: str
+    sttProvider: str
+    sttModel: str
+    sttElapsedMs: int
+
+
 app = FastAPI(title="liketypeless local API", version="0.1.0")
 recorder = AudioRecorder(recordings_dir=Path(__file__).resolve().parents[1] / "data" / "recordings")
 
@@ -204,6 +212,32 @@ def transcribe_voice_recording() -> VoiceTranscribeResponse:
         recordingStopElapsedMs=recording_stop_elapsed_ms,
         sttElapsedMs=transcript.elapsed_ms,
         totalElapsedMs=round((perf_counter() - total_started_at) * 1000),
+    )
+
+
+@app.post("/voice/recording/preview", response_model=VoicePreviewResponse)
+def preview_voice_recording() -> VoicePreviewResponse:
+    try:
+        snapshot = recorder.snapshot()
+    except AudioRecorderError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Unable to snapshot recording: {exc}") from exc
+
+    snapshot_path = Path(snapshot["filePath"])
+    try:
+        transcript = stt_provider.transcribe(snapshot_path, language=settings.stt_language)
+    except STTError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    finally:
+        snapshot_path.unlink(missing_ok=True)
+
+    return VoicePreviewResponse(
+        durationSeconds=float(snapshot["durationSeconds"]),
+        transcript=transcript.text,
+        sttProvider=transcript.provider,
+        sttModel=transcript.model,
+        sttElapsedMs=transcript.elapsed_ms,
     )
 
 

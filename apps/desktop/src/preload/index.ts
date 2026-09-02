@@ -7,6 +7,7 @@ import type {
   StructureResponse,
   TranscribeResponse,
   VoiceFinishResponse,
+  VoicePreviewResponse,
   VoiceTranscribeResponse
 } from "@liketypeless/shared";
 
@@ -18,6 +19,7 @@ export type LikeTypelessApi = {
   stopRecording: () => Promise<StopRecordingResponse>;
   transcribe: (filePath: string, provider?: string) => Promise<TranscribeResponse>;
   transcribeVoiceRecording: () => Promise<VoiceTranscribeResponse>;
+  previewVoiceRecording: () => Promise<VoicePreviewResponse>;
   finishVoiceRecording: () => Promise<VoiceFinishResponse>;
   structure: (text: string) => Promise<StructureResponse>;
 };
@@ -32,6 +34,7 @@ const api: LikeTypelessApi = {
     ipcRenderer.invoke("api:transcribe", filePath, provider) as Promise<TranscribeResponse>,
   transcribeVoiceRecording: () =>
     ipcRenderer.invoke("api:transcribe-voice-recording") as Promise<VoiceTranscribeResponse>,
+  previewVoiceRecording: () => ipcRenderer.invoke("api:preview-voice-recording") as Promise<VoicePreviewResponse>,
   finishVoiceRecording: () => ipcRenderer.invoke("api:finish-voice-recording") as Promise<VoiceFinishResponse>,
   structure: (text: string) => ipcRenderer.invoke("api:structure", text) as Promise<StructureResponse>
 };
