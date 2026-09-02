@@ -7,6 +7,7 @@ import {
   Menu,
   nativeImage,
   Notification,
+  screen,
   Tray
 } from "electron";
 import { join } from "node:path";
@@ -28,10 +29,82 @@ const RENDERER_DEV_URL = process.env.ELECTRON_RENDERER_URL ?? "http://localhost:
 const GLOBAL_HOTKEY = process.env.LIKETYPELESS_GLOBAL_HOTKEY ?? "Shift+Space";
 
 let mainWindow: BrowserWindow | null = null;
+let statusOverlay: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let hotkeyWorkflowRunning = false;
 let targetWindowHandle: string | null = null;
+let statusOverlayTimer: ReturnType<typeof setTimeout> | null = null;
+
+type StatusOverlayState = "recording" | "processing" | "success" | "error";
+
+const STATUS_OVERLAY_COPY: Record<StatusOverlayState, { title: string; detail: string }> = {
+  recording: { title: "正在录音", detail: `再次按 ${GLOBAL_HOTKEY} 结束` },
+  processing: { title: "正在处理", detail: "转写并整理语音内容" },
+  success: { title: "已输入", detail: "文本已粘贴到原输入框" },
+  error: { title: "处理失败", detail: "请检查录音、模型或服务状态" }
+};
+
+function createStatusOverlayHtml(state: StatusOverlayState): string {
+  const copy = STATUS_OVERLAY_COPY[state];
+  const isProcessing = state === "processing";
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif; background: transparent; color: #fff; }
+    .card { width: 100%; height: 100%; display: flex; align-items: center; gap: 12px; padding: 16px 18px; border: 1px solid rgba(255,255,255,.16); border-radius: 16px; background: rgba(20, 25, 31, .93); box-shadow: 0 12px 36px rgba(0,0,0,.28); }
+    .indicator { width: 13px; height: 13px; flex: 0 0 auto; border-radius: 50%; background: ${state === "error" ? "#fb7185" : state === "success" ? "#4ade80" : "#f87171"}; box-shadow: 0 0 0 6px ${state === "error" ? "rgba(251,113,133,.15)" : state === "success" ? "rgba(74,222,128,.15)" : "rgba(248,113,113,.15)"}; }
+    .processing { background: transparent; border: 3px solid rgba(255,255,255,.24); border-top-color: #93c5fd; box-shadow: none; animation: spin 900ms linear infinite; }
+    .text { min-width: 0; }
+    .title { font-size: 15px; line-height: 1.35; font-weight: 700; }
+    .detail { margin-top: 3px; color: rgba(255,255,255,.7); font-size: 12px; line-height: 1.35; white-space: nowrap; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style></head><body><div class="card"><span class="indicator${isProcessing ? " processing" : ""}"></span><div class="text"><div class="title">${copy.title}</div><div class="detail">${copy.detail}</div></div></div></body></html>`;
+}
+
+function hideStatusOverlay(): void {
+  if (statusOverlayTimer) {
+    clearTimeout(statusOverlayTimer);
+    statusOverlayTimer = null;
+  }
+  statusOverlay?.hide();
+}
+
+function showStatusOverlay(state: StatusOverlayState, hideAfterMs?: number): void {
+  if (statusOverlayTimer) {
+    clearTimeout(statusOverlayTimer);
+    statusOverlayTimer = null;
+  }
+
+  if (!statusOverlay || statusOverlay.isDestroyed()) {
+    const { workArea } = screen.getPrimaryDisplay();
+    statusOverlay = new BrowserWindow({
+      width: 336,
+      height: 86,
+      x: workArea.x + workArea.width - 356,
+      y: workArea.y + workArea.height - 116,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      focusable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      hasShadow: false,
+      webPreferences: { contextIsolation: true, nodeIntegration: false }
+    });
+    statusOverlay.setIgnoreMouseEvents(true);
+    statusOverlay.on("closed", () => {
+      statusOverlay = null;
+    });
+  }
+
+  statusOverlay.setAlwaysOnTop(true, "screen-saver");
+  void statusOverlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(createStatusOverlayHtml(state))}`);
+  statusOverlay.showInactive();
+
+  if (hideAfterMs) {
+    statusOverlayTimer = setTimeout(hideStatusOverlay, hideAfterMs);
+  }
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -181,10 +254,12 @@ async function handleGlobalHotkey(): Promise<void> {
     if (!targetWindowHandle) {
       targetWindowHandle = await getForegroundWindowHandle();
       await postJson<RecordingStatus>("/audio/recording/start");
+      showStatusOverlay("recording");
       notify("liketypeless", `开始录音，再按 ${GLOBAL_HOTKEY} 结束`);
       return;
     }
 
+    showStatusOverlay("processing");
     const result = await postJson<VoiceFinishResponse>("/voice/recording/finish");
     const text = result.structuredText.trim() || result.transcript.trim();
     if (!text) {
@@ -201,11 +276,13 @@ async function handleGlobalHotkey(): Promise<void> {
     }
 
     notify("liketypeless", `已输入，耗时 ${result.totalElapsedMs} ms`);
+    showStatusOverlay("success", 1400);
     targetWindowHandle = null;
   } catch (error) {
     targetWindowHandle = null;
     const message = error instanceof Error ? error.message : String(error);
     console.error(`Global hotkey workflow failed: ${message}`);
+    showStatusOverlay("error", 4000);
     notify("liketypeless 失败", message);
   } finally {
     hotkeyWorkflowRunning = false;
@@ -240,6 +317,7 @@ app.whenReady().then(() => {
 });
 
 app.on("will-quit", () => {
+  hideStatusOverlay();
   globalShortcut.unregisterAll();
 });
 
