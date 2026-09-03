@@ -13,9 +13,11 @@
     "dev:desktop": "npm --workspace @liketypeless/shared run build && npm --workspace apps/desktop run dev",
     "check": "npm --workspace @liketypeless/shared run check && npm --workspace @liketypeless/desktop run check",
     "check:api": "cd apps/local-api && python -m compileall app scripts",
-    "download:stt": "cd apps/local-api && python scripts/download_stt_model.py --model small"
+    "download:stt": "cd apps/local-api && python scripts/download_stt_model.py --model small",
+    "dist": "npm --workspace apps/desktop run dist"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "electron-builder": "^26.15.3"
   }
 }

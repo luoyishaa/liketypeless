@@ -1,0 +1,20 @@
+appId: com.liketypeless.desktop
+productName: liketypeless
+electronVersion: 39.2.4
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+artifactName: ${productName}-Setup-${version}.${ext}

@@ -223,6 +223,16 @@ npm run check:api
 Invoke-RestMethod -Uri "http://127.0.0.1:8716/health"
 ```
 
+## Windows 安装包与首次启动
+
+生成 NSIS 安装程序：
+
+```powershell
+npm run dist
+```
+
+安装包会输出到 `apps/desktop/release/`。首次启动前，请先按“安装”章节创建项目 Python 环境、安装本地 API 依赖、下载 STT 模型，并启动 Ollama。主窗口顶部会显示 Ollama/API 状态；无法连接时先运行 `npm run dev:api` 排查本地服务。
+
 实际使用测试：
 
 1. 打开记事本、浏览器输入框或其他普通文本输入框。
@@ -316,7 +326,7 @@ scripts/
 - [x] 可配置快捷键和输入设备界面
 - [ ] 浏览器和文档划线翻译
 - [x] 中文转英文语音输入模式
-- [ ] 打包安装程序和首次启动检查
+- [x] 打包安装程序和首次启动检查
 
 ## 协作
 
