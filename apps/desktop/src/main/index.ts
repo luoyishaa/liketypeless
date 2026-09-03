@@ -18,12 +18,13 @@ import {
   type RecordingStatus,
   type StopRecordingResponse,
   type StructureResponse,
+  type TranslationResponse,
   type TranscribeResponse,
   type VoiceFinishResponse,
   type VoicePreviewResponse,
   type VoiceTranscribeResponse
 } from "@liketypeless/shared";
-import { getForegroundWindowHandle, pasteIntoWindow } from "./windows-input";
+import { copySelectionFromWindow, getForegroundWindowHandle, pasteIntoWindow } from "./windows-input";
 import { loadDesktopSettings, saveDesktopSettings, type DesktopSettings } from "./settings-store";
 
 const API_BASE_URL = process.env.LIKETYPELESS_API_BASE_URL ?? DEFAULT_API_BASE_URL;
@@ -35,6 +36,7 @@ let isQuitting = false;
 let hotkeyWorkflowRunning = false;
 let targetWindowHandle: string | null = null;
 let statusOverlayTimer: ReturnType<typeof setTimeout> | null = null;
+let translationWorkflowRunning = false;
 let desktopSettings: DesktopSettings = { globalHotkey: "Shift+Space", inputDeviceId: null, outputMode: "zh" };
 
 type StatusOverlayState = "recording" | "processing" | "success" | "error";
@@ -268,6 +270,29 @@ ipcMain.handle("api:structure", async (_event, text: string): Promise<StructureR
   return postJson<StructureResponse>("/llm/structure", { text });
 });
 
+async function handleSelectionTranslation(): Promise<void> {
+  if (translationWorkflowRunning) return;
+  translationWorkflowRunning = true;
+  try {
+    const target = await getForegroundWindowHandle();
+    const previousClipboardText = clipboard.readText();
+    await copySelectionFromWindow(target);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    const sourceText = clipboard.readText().trim();
+    if (!sourceText || sourceText === previousClipboardText) throw new Error("未检测到可翻译的已选文本");
+    showStatusOverlay("processing");
+    const translation = await postJson<TranslationResponse>("/llm/translate", { text: sourceText });
+    clipboard.writeText(translation.translatedText);
+    try { await pasteIntoWindow(target); } finally { setTimeout(() => clipboard.writeText(previousClipboardText), 250); }
+    showStatusOverlay("success", 1400);
+    notify("liketypeless", "划线翻译已粘贴");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    showStatusOverlay("error", 4000);
+    notify("liketypeless 翻译失败", message);
+  } finally { translationWorkflowRunning = false; }
+}
+
 function notify(title: string, body: string): void {
   if (Notification.isSupported()) {
     new Notification({ title, body }).show();
@@ -333,11 +358,19 @@ function registerGlobalHotkey(): void {
   }
 }
 
+function registerTranslationHotkey(): void {
+  const hotkey = "Ctrl+Shift+T";
+  if (!globalShortcut.register(hotkey, () => void handleSelectionTranslation())) {
+    console.error(`Unable to register translation hotkey: ${hotkey}`);
+  }
+}
+
 app.whenReady().then(async () => {
   desktopSettings = await loadDesktopSettings();
   createWindow();
   createTray();
   registerGlobalHotkey();
+  registerTranslationHotkey();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

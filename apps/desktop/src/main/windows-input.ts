@@ -111,3 +111,25 @@ Start-Sleep -Milliseconds 120
 
   await runPowerShell(script);
 }
+
+export async function copySelectionFromWindow(handle: string): Promise<void> {
+  if (!/^\d+$/.test(handle) || handle === "0") {
+    throw new Error(`Invalid foreground window handle: ${handle}`);
+  }
+  const script = `
+$ErrorActionPreference = "Stop"
+Add-Type -TypeDefinition @'
+${USER32_TYPE}
+'@
+$window = [IntPtr]::new(${handle})
+[void][LikeTypelessUser32]::ShowWindowAsync($window, 9)
+[void][LikeTypelessUser32]::BringWindowToTop($window)
+[void][LikeTypelessUser32]::SetForegroundWindow($window)
+Start-Sleep -Milliseconds 80
+[LikeTypelessUser32]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)
+[LikeTypelessUser32]::keybd_event(0x43, 0, 0, [UIntPtr]::Zero)
+[LikeTypelessUser32]::keybd_event(0x43, 0, 2, [UIntPtr]::Zero)
+[LikeTypelessUser32]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)
+`;
+  await runPowerShell(script);
+}

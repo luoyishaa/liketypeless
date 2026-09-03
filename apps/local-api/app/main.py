@@ -24,6 +24,16 @@ class StructureResponse(BaseModel):
     structuredText: str
 
 
+class TranslationRequest(BaseModel):
+    text: str = Field(min_length=1)
+
+
+class TranslationResponse(BaseModel):
+    originalText: str
+    translatedText: str
+    model: str
+
+
 class HealthResponse(BaseModel):
     status: str
     ollamaReachable: bool
@@ -314,3 +324,12 @@ def structure_text(request: StructureRequest) -> StructureResponse:
         originalText=request.text,
         structuredText=structure_result.text,
     )
+
+
+@app.post("/llm/translate", response_model=TranslationResponse)
+def translate_text(request: TranslationRequest) -> TranslationResponse:
+    try:
+        translated_text, model = translate_chinese_to_english(request.text)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return TranslationResponse(originalText=request.text, translatedText=translated_text, model=model)

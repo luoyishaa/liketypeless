@@ -12,6 +12,12 @@ export type StructureResponse = {
   structuredText: string;
 };
 
+export type TranslationResponse = {
+  originalText: string;
+  translatedText: string;
+  model: string;
+};
+
 export type HealthResponse = {
   status: "ok";
   ollamaReachable: boolean;
