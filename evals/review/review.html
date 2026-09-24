@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>本地语音评测审阅</title>
+<style>
+body{font:16px/1.6 system-ui,sans-serif;margin:0;background:#f4f6f8;color:#1e293b}main{max-width:900px;margin:24px auto;padding:24px;background:white;border-radius:16px}h1{font-size:25px;margin:0}h2{font-size:17px}p{white-space:pre-wrap;overflow-wrap:anywhere}.muted{color:#64748b;font-size:14px}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:16px 0}button,input,textarea{font:inherit;padding:9px;border:1px solid #cbd5e1;border-radius:6px}button{cursor:pointer;background:#eff6ff;color:#1d4ed8}button:disabled{cursor:default;color:#94a3b8}article{border:1px solid #e2e8f0;padding:0 16px;margin:12px 0;border-radius:8px}fieldset{border:0;border-top:1px solid #e2e8f0;padding:12px 0}legend{padding-top:12px}label{display:inline-flex;gap:5px;margin-right:14px;align-items:center}textarea{box-sizing:border-box;width:100%;min-height:75px}audio{width:100%}#status{color:#166534}a{color:#1d4ed8}
+</style>
+<main>
+<h1>语音与文本审阅</h1>
+<p class="muted">请独立听音、阅读并评分。5 分：忠实准确；3 分：有错误但主旨可辨；1 分：关键意思错误。发现数字、姓名、否定或条件变化时，请在备注中写明。先听音再看参考；参考标注也可能有误。草稿仅保存在本浏览器，完成后请导出 CSV。</p>
+<div class="row"><label>审阅者代号 <input id="reviewer" placeholder="例如 reviewer-a" autocomplete="off"></label><button id="export">导出已完成条目</button></div>
+<div id="status" role="status" aria-live="polite"></div>
+<div class="row"><button id="prev">上一条</button><strong id="position"></strong><button id="next">下一条</button><span id="completed" class="muted"></span></div>
+<div id="content"></div><form id="scores"></form>
+<label for="notes">备注（错误类型、原文→结果、参考是否存疑）</label><textarea id="notes"></textarea>
+<p class="muted">两位审阅者使用不同代号，各自完成并导出；请勿互看分数。空白不会被计为已审阅。此页面不显示模型名称，但并非随机双盲实验。</p>
+</main>
+<script id="review-data" type="application/json">__REVIEW_DATA__</script>
+<script>
+"use strict";
+const {rows,fields}=JSON.parse(document.getElementById('review-data').textContent);
+const fingerprint='__REVIEW_FINGERPRINT__';
+const $=id=>document.getElementById(id);
+const criteria={
+asr:[['asr_faithfulness_1_to_5','转写忠实度（请听音）',5]],
+structure:[['meaning_preserved','原意是否保留？',2],['deleted_meaningful_content','是否删除了有意义内容？',2],['added_information','是否添加了原文没有的信息？',2],['protected_terms_preserved','数字、姓名、否定等关键信息是否保留？',2],['punctuation_appropriate','标点是否恰当？',2]],
+translation:[['translation_faithfulness_1_to_5','翻译忠实度',5],['translation_naturalness_1_to_5','英语自然度',5]]};
+let index=0,drafts={};
+const required=row=>row.stages.flatMap(stage=>criteria[stage]);
+const identity=()=>$('reviewer').value.trim();
+const key=()=>fingerprint+':'+identity().toLowerCase();
+function save(){
+  if(!identity()){$('status').textContent='请先填写审阅者代号，再开始评分。';return;}
+  const draft={notes:$('notes').value};
+  required(rows[index]).forEach(([field])=>{draft[field]=document.querySelector('input[name="'+field+'"]:checked')?.value||'';});
+  drafts[rows[index].id]=draft;
+  try{localStorage.setItem(key(),JSON.stringify(drafts));}catch{$('status').textContent='浏览器未允许保存草稿，请及时导出。';}
+  $('completed').textContent='已完成 '+rows.filter(complete).length+' / '+rows.length;
+}
+function complete(row){return required(row).every(([field])=>drafts[row.id]?.[field]);}
+function render(){
+  const row=rows[index], draft=drafts[row.id]||{};
+  $('position').textContent=(index+1)+' / '+rows.length;
+  $('prev').disabled=index===0;$('next').disabled=index===rows.length-1;
+  $('completed').textContent='已完成 '+rows.filter(complete).length+' / '+rows.length;
+  $('content').replaceChildren();$('scores').replaceChildren();
+  if(row.audio_url){const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.src=row.audio_url;$('content').append(audio);}
+  for(const [field,label] of [['reference','参考转写'],['input_text','原文'],['asr_text','模型转写'],['structured_text','整理结果'],['translation_reference','参考译文（允许其他正确表达）'],['translation','模型翻译'],['protected_terms','关键信息']]){
+    if(!row[field] && !(field==='asr_text'&&row.stages.includes('asr')))continue;
+    const article=document.createElement('article'),h=document.createElement('h2'),p=document.createElement('p');h.textContent=label;p.textContent=row[field]||'（空输出）';article.append(h,p);$('content').append(article);
+  }
+  for(const [field,label,scale] of required(row)){
+    const group=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent=label;group.append(legend);
+    for(const [value,text] of scale===5?['1','2','3','4','5'].map(x=>[x,x]):[['yes','是'],['no','否']]){
+      const item=document.createElement('label'),input=document.createElement('input');input.type='radio';input.name=field;input.value=value;input.checked=draft[field]===value;input.addEventListener('change',save);item.append(input,document.createTextNode(text));group.append(item);
+    }$('scores').append(group);
+  }
+  $('notes').value=draft.notes||'';
+  $('notes').disabled=!identity();
+  document.querySelectorAll('fieldset').forEach(group=>{group.disabled=!identity();});
+  if(!identity())$('status').textContent='请先填写审阅者代号，再开始评分。';
+}
+$('scores').addEventListener('submit',e=>e.preventDefault());$('notes').addEventListener('input',save);
+$('prev').onclick=()=>{save();index--;render();};$('next').onclick=()=>{save();index++;render();};
+$('reviewer').addEventListener('change',()=>{try{drafts=JSON.parse(localStorage.getItem(key())||'{}');}catch{drafts={};}render();});
+$('export').onclick=()=>{
+  if(!identity()||identity().toLowerCase()==='adjudicator'){$('status').textContent='请填写个人审阅者代号。';return;}save();
+  const done=rows.filter(complete);if(!done.length){$('status').textContent='还没有填写完整的条目。';return;}
+  const quote=value=>'"'+String(value??'').replaceAll('"','""')+'"';
+  const lines=[fields.map(quote).join(','),...done.map(row=>{const result={...row,...drafts[row.id],reviewer:identity()};return fields.map(field=>quote(result[field])).join(',');})];
+  const url=URL.createObjectURL(new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='review-'+identity().replace(/[^a-z0-9_-]/gi,'_')+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);$('status').textContent='已导出 '+done.length+' 条。请保留原始文件。';
+};
+render();
+</script>
+</html>

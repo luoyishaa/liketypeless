@@ -8,6 +8,7 @@ from pathlib import Path
 import pyarrow.parquet as pq
 
 from make_manifest import choose
+from evaluate import normalize, read_jsonl
 
 
 def metadata_rows(files: list[Path], corpus: str) -> list[dict]:
@@ -36,8 +37,16 @@ def metadata_rows(files: list[Path], corpus: str) -> list[dict]:
     return rows
 
 
-def extract(files: list[Path], corpus: str, count: int, output: Path, audio_dir: Path) -> int:
+def extract(files: list[Path], corpus: str, count: int, output: Path, audio_dir: Path,
+            max_reference_chars: int | None = None, exclude_manifest: Path | None = None) -> int:
+    if count < 1 or (max_reference_chars is not None and max_reference_chars < 1):
+        raise ValueError("Sample count and maximum reference length must be positive")
     rows = metadata_rows(files, corpus)
+    excluded = read_jsonl(exclude_manifest) if exclude_manifest else {}
+    rows = [row for row in rows if row["id"] not in excluded and
+            (max_reference_chars is None or 0 < len(normalize(row["reference"])) <= max_reference_chars)]
+    if not rows:
+        raise ValueError("No samples satisfy the reference-length and exclusion filters")
     speaker_limit = max(1, (count + len({row["speaker"] for row in rows}) - 1) // len({row["speaker"] for row in rows})) if corpus == "aishell-1" else 3
     selected = choose(rows, count, corpus, per_speaker=speaker_limit)
     selected_by_id = {row["id"]: row for row in selected}
@@ -72,8 +81,10 @@ def main() -> None:
     parser.add_argument("--count", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--audio-dir", type=Path, required=True)
+    parser.add_argument("--max-reference-chars", type=int)
+    parser.add_argument("--exclude-manifest", type=Path)
     args = parser.parse_args()
-    print(f"Extracted {extract(args.shards, args.corpus, args.count, args.output, args.audio_dir)} samples")
+    print(f"Extracted {extract(args.shards, args.corpus, args.count, args.output, args.audio_dir, args.max_reference_chars, args.exclude_manifest)} samples")
 
 
 if __name__ == "__main__":

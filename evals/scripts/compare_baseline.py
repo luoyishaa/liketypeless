@@ -15,6 +15,7 @@ METRICS = (
     ("safety.automatic_violation_rate", "lower"),
     ("safety.human_faithful_rate", "higher"),
     ("translation.chrf_plus_plus", "higher"),
+    ("translation.automatic_violation_rate", "lower"),
     ("translation.human_faithfulness_mean_1_to_5", "higher"),
     ("translation.human_naturalness_mean_1_to_5", "higher"),
 )
@@ -23,6 +24,8 @@ METRICS = (
 def value_at(report: dict, path: str):
     value = report
     for part in path.split("."):
+        if part not in value and path == "translation.automatic_violation_rate":
+            return None  # Additive field absent from the original version-4 reports.
         value = value[part]
     return value
 
@@ -39,6 +42,8 @@ def compare(baseline: dict, candidate: dict) -> tuple[str, bool]:
         raise ValueError("Reports must have identical ASR and latency coverage")
     if baseline["translation"]["samples"] != candidate["translation"]["samples"] or baseline["safety"]["structure_samples"] != candidate["safety"]["structure_samples"]:
         raise ValueError("Reports must have identical translation and safety coverage")
+    if baseline["translation"].get("automatic_checked_samples", 0) != candidate["translation"].get("automatic_checked_samples", 0):
+        raise ValueError("Reports must have identical translation safety coverage")
     lines = ["| Metric | Baseline | Candidate | Absolute change | Relative change |", "|---|---:|---:|---:|---:|"]
     metrics = list(METRICS)
     for source in sorted(baseline["by_source"]):
@@ -61,6 +66,16 @@ def compare(baseline: dict, candidate: dict) -> tuple[str, bool]:
     before = baseline["safety"]["automatic_violation_rate"]
     after = candidate["safety"]["automatic_violation_rate"]
     regression = before is not None and after is not None and after > before
+    before = baseline["translation"].get("automatic_violation_rate")
+    after = candidate["translation"].get("automatic_violation_rate")
+    regression |= before is not None and after is not None and after > before
+    # A new critical failure must not be hidden by fixing a different sample.
+    for stage in ("safety", "translation"):
+        newly_unsafe = sorted(set(candidate[stage].get("automatic_violation_ids", []))
+                              - set(baseline[stage].get("automatic_violation_ids", [])))
+        if newly_unsafe:
+            regression = True
+            lines.append(f"New {stage} violations: " + ", ".join(newly_unsafe))
     lines.append("")
     lines.append("Safety gate: **FAIL**" if regression else "Safety gate: **PASS**")
     return "\n".join(lines), regression

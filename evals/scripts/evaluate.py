@@ -6,6 +6,7 @@ from collections import defaultdict
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 import unicodedata
 from typing import Any
@@ -37,6 +38,20 @@ def normalize_protected(text: str) -> str:
     ignored = set("，。！？；：,!?;:")
     return "".join(char.casefold() for char in unicodedata.normalize("NFKC", text)
                    if not char.isspace() and char not in ignored)
+
+
+def translation_violations(sample: dict, text: str) -> list[str]:
+    """Narrow annotated lexical checks, not an automatic semantic judgement."""
+    failures = []
+    for term in sample.get("translation_verbatim_terms", []):
+        if not term or term not in text:
+            failures.append(f"verbatim:{term}")
+    for alternatives in sample.get("translation_required_any", []):
+        if not alternatives or any(not term.strip() for term in alternatives):
+            raise ValueError("Translation alternatives must contain nonempty terms")
+        if not any(re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", text, re.IGNORECASE) for term in alternatives):
+            failures.append("any:" + "|".join(alternatives))
+    return failures
 
 
 def edit_distance(reference: str, hypothesis: str) -> int:
@@ -128,6 +143,8 @@ def evaluate(manifest: dict[str, dict[str, Any]], predictions: dict[str, dict[st
     protected_count = kept_count = unsafe_count = structure_count = 0
     unsafe_ids: list[str] = []
     translation_pairs: list[tuple[str, str]] = []
+    translation_checked = 0
+    translation_unsafe_ids = []
     human_review_count = human_faithful_count = 0
     translation_faithfulness_scores: list[float] = []
     translation_naturalness_scores: list[float] = []
@@ -141,16 +158,23 @@ def evaluate(manifest: dict[str, dict[str, Any]], predictions: dict[str, dict[st
             structured = normalize_protected(output["structured_text"])
             required = sample.get("protected_terms", [])
             forbidden = sample.get("forbidden_phrases", [])
-            if any(not normalize_protected(term) for term in [*required, *forbidden]):
+            verbatim = sample.get("verbatim_terms", [])
+            if any(not normalize_protected(term) for term in [*required, *forbidden, *verbatim]):
                 raise ValueError(f"{sample['id']}: empty protected or forbidden term")
-            protected_count += len(required)
-            kept_count += sum(normalize_protected(term) in structured for term in required)
-            violation = any(normalize_protected(term) not in structured for term in required) or any(normalize_protected(term) in structured for term in forbidden)
+            protected_count += len(required) + len(verbatim)
+            kept_count += sum(normalize_protected(term) in structured for term in required) + sum(term in output["structured_text"] for term in verbatim)
+            violation = (any(normalize_protected(term) not in structured for term in required)
+                         or any(normalize_protected(term) in structured for term in forbidden)
+                         or any(term not in output["structured_text"] for term in verbatim))
             if violation:
                 unsafe_count += 1
                 unsafe_ids.append(sample["id"])
         if "translation_reference" in sample:
             translation_pairs.append((output["translation"], sample["translation_reference"]))
+            if sample.get("translation_verbatim_terms") or sample.get("translation_required_any"):
+                translation_checked += 1
+                if translation_violations(sample, output["translation"]):
+                    translation_unsafe_ids.append(sample["id"])
         review = output.get("human_review")
         if isinstance(review, dict):
             if "input_text" in sample:
@@ -191,6 +215,9 @@ def evaluate(manifest: dict[str, dict[str, Any]], predictions: dict[str, dict[st
         },
         "translation": {
             "samples": len(translation_pairs), "chrf_plus_plus": chrf,
+            "automatic_checked_samples": translation_checked,
+            "automatic_violation_rate": ratio(len(translation_unsafe_ids), translation_checked),
+            "automatic_violation_ids": translation_unsafe_ids,
             "human_reviewed": len(translation_faithfulness_scores),
             "human_faithfulness_mean_1_to_5": round(sum(translation_faithfulness_scores) / len(translation_faithfulness_scores), 3) if translation_faithfulness_scores else None,
             "human_naturalness_mean_1_to_5": round(sum(translation_naturalness_scores) / len(translation_naturalness_scores), 3) if translation_naturalness_scores else None,

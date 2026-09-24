@@ -1,0 +1,132 @@
+{
+  "manifest_sha256": "1ed47891979f86e31051f7d3411fa5e2f63ae614e58e4333b501bdfc20829627",
+  "candidate_manifest_sha256": "b6622266a524a079309da6a2ae7d0118f2ff5ffe68c4d1b2f0f5e3d3277ef74d",
+  "comparison_type": "audio_preprocessing",
+  "baseline": {
+    "cer": {
+      "values": [
+        0.371768,
+        0.37037,
+        0.373864
+      ],
+      "median": 0.371768,
+      "min": 0.37037,
+      "max": 0.373864
+    },
+    "p50_ms": {
+      "values": [
+        131.979,
+        121.822,
+        123.929
+      ],
+      "median": 123.929,
+      "min": 121.822,
+      "max": 131.979
+    },
+    "p95_ms": {
+      "values": [
+        351.769,
+        431.162,
+        324.485
+      ],
+      "median": 351.769,
+      "min": 324.485,
+      "max": 431.162
+    },
+    "warmup_ms": 1370.136,
+    "provider": "local-faster-whisper",
+    "device": "cuda",
+    "coordinator_python": "3.12.13",
+    "product_code_sha256": "9d701ef74fbb1c4ecd3b0656ec2c7d6c14634b66d315274cbca4d7ba6d2c073e",
+    "packages": {
+      "faster-whisper": "1.2.1",
+      "ctranslate2": "4.8.2"
+    }
+  },
+  "candidate": {
+    "cer": {
+      "values": [
+        0.355695,
+        0.3529,
+        0.353948
+      ],
+      "median": 0.353948,
+      "min": 0.3529,
+      "max": 0.355695
+    },
+    "p50_ms": {
+      "values": [
+        121.287,
+        122.683,
+        116.87
+      ],
+      "median": 121.287,
+      "min": 116.87,
+      "max": 122.683
+    },
+    "p95_ms": {
+      "values": [
+        281.637,
+        286.877,
+        274.619
+      ],
+      "median": 281.637,
+      "min": 274.619,
+      "max": 286.877
+    },
+    "warmup_ms": 1346.721,
+    "provider": "local-faster-whisper",
+    "device": "cuda",
+    "coordinator_python": "3.12.13",
+    "product_code_sha256": "9d701ef74fbb1c4ecd3b0656ec2c7d6c14634b66d315274cbca4d7ba6d2c073e",
+    "packages": {
+      "faster-whisper": "1.2.1",
+      "ctranslate2": "4.8.2"
+    }
+  },
+  "baseline_process": {
+    "exit_code": 0,
+    "completed_report_exists": true
+  },
+  "candidate_process": {
+    "exit_code": 0,
+    "completed_report_exists": true
+  },
+  "paired": {
+    "samples": 150,
+    "clusters": 3,
+    "cer_before": 0.371768,
+    "cer_after": 0.355695,
+    "absolute_cer_delta": -0.016073,
+    "relative_error_change": -0.043233,
+    "cer_delta_95pct_cluster_bootstrap": null,
+    "bootstrap_draws": 0,
+    "changed_transcripts": 103,
+    "improved_utterances": 52,
+    "worsened_utterances": 28,
+    "tied_utterances": 70,
+    "interval_note": "Too few independent clusters, unavailable speaker IDs, or constructed stress audio; no confidence interval is claimed."
+  },
+  "by_source": {
+    "aishell-4-meeting": {
+      "samples": 150,
+      "clusters": 3,
+      "cer_before": 0.371768,
+      "cer_after": 0.355695,
+      "absolute_cer_delta": -0.016073,
+      "relative_error_change": -0.043233,
+      "cer_delta_95pct_cluster_bootstrap": null,
+      "bootstrap_draws": 0,
+      "changed_transcripts": 103,
+      "improved_utterances": 52,
+      "worsened_utterances": 28,
+      "tied_utterances": 70,
+      "interval_note": "Too few independent clusters, unavailable speaker IDs, or constructed stress audio; no confidence interval is claimed."
+    }
+  },
+  "limitations": [
+    "Latency compares deployed configurations, not equal hardware: SenseVoice currently uses CPU, Whisper uses CUDA when available.",
+    "Three trials describe local variability, not a latency confidence interval. No recording/UI/paste time is included.",
+    "Known test sets and diagnostic slices must not be treated as a new unseen holdout or official leaderboard score."
+  ]
+}

@@ -100,7 +100,8 @@ class EvaluationTests(unittest.TestCase):
             (root / "test.tsv").write_text("speaker\ta.wav\t你好。\t你好\n", encoding="utf-8")
             rows = fleurs(root, 1)
             self.assertEqual(rows[0]["reference"], "你好。")
-            self.assertEqual(rows[0]["speaker"], "speaker")
+            self.assertEqual(rows[0]["corpus_id"], "speaker")
+            self.assertNotIn("speaker", rows[0])
 
     def test_aishell4_textgrid_ignores_silence_markup(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

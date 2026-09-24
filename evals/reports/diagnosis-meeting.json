@@ -1,0 +1,25 @@
+{
+  "by_source": {
+    "aishell-4-meeting": {
+      "character_errors": 1061,
+      "substitutions": 499,
+      "deletions": 532,
+      "insertions": 30,
+      "samples": 150,
+      "reference_characters": 2862,
+      "exact_matches": 11,
+      "number_review": 59,
+      "unexpected_latin": 4,
+      "negation_review": 38,
+      "short_reference": 21,
+      "number_format_candidate": 4,
+      "empty_hypothesis": 8,
+      "major_deletion": 18,
+      "cer": 0.37072
+    }
+  },
+  "limitations": [
+    "Flags identify review candidates, not verified causes. Number formatting is not automatically forgiven.",
+    "S/D/I counts use one deterministic minimum-edit alignment; equal-cost alignments may differ."
+  ]
+}

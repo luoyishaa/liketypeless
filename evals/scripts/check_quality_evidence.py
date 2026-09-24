@@ -17,9 +17,23 @@ CORE_FILES = {
     "apps/local-api/app/structure_service.py",
     "apps/local-api/app/text_structure.py",
     "apps/local-api/app/translation_service.py",
+    "apps/local-api/scripts/sensevoice_runner.py",
+    "apps/local-api/requirements.txt",
     "apps/desktop/src/renderer/main.tsx",
 }
 CORE_PREFIXES = ("apps/desktop/src/main/", "apps/desktop/src/preload/", "packages/shared/src/")
+TRANSLATION_FILES = {"apps/local-api/app/translation_service.py", "apps/local-api/app/ollama_client.py", "apps/local-api/app/config.py"}
+
+
+def require_comparison(baseline_path: Path, candidate_path: Path, changed: set[str], label: str) -> None:
+    if not baseline_path.is_file() or not candidate_path.is_file() or candidate_path.as_posix() not in changed:
+        raise SystemExit(f"{label}: rerun and update {candidate_path.as_posix()} using the fixed baseline manifest.")
+    baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+    candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+    summary, unsafe = compare(baseline, candidate)
+    print(f"\n{label}:\n{summary}")
+    if baseline["prediction_sha256"] == candidate["prediction_sha256"] or unsafe:
+        raise SystemExit(f"{label}: predictions must be rerun and must pass the safety regression gate.")
 
 
 def main() -> None:
@@ -51,7 +65,7 @@ def main() -> None:
         raise SystemExit("Candidate predictions are identical to baseline; rerun the changed inference path.")
     if unsafe:
         raise SystemExit("Automatic safety gate failed.")
-    if "apps/local-api/app/stt_service.py" in core_changes:
+    if core_changes & {"apps/local-api/app/stt_service.py", "apps/local-api/scripts/sensevoice_runner.py", "apps/local-api/requirements.txt"}:
         longform_path = args.longform_candidate.as_posix()
         if not args.longform_baseline.is_file() or not args.longform_candidate.is_file() or longform_path not in changed:
             raise SystemExit("ASR implementation changed; update the long-form candidate report on the fixed probe set.")
@@ -61,6 +75,9 @@ def main() -> None:
         print("\nLong-form chunking comparison:\n" + longform_summary)
         if longform_baseline["prediction_sha256"] == longform_candidate["prediction_sha256"] or longform_unsafe:
             raise SystemExit("Long-form predictions must be rerun and must pass the safety gate.")
+    if core_changes & TRANSLATION_FILES:
+        require_comparison(Path("evals/reports/flores200-qwen3-baseline.json"), Path("evals/reports/flores200-qwen3-candidate.json"), changed, "Public translation comparison")
+        require_comparison(Path("evals/reports/high-risk-text-before.json"), Path("evals/reports/high-risk-text-candidate.json"), changed, "High-risk text comparison")
 
 
 if __name__ == "__main__":

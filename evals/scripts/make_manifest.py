@@ -13,12 +13,12 @@ def rank(identifier: str) -> str:
     return hashlib.sha256(f"20260924:{identifier}".encode()).hexdigest()
 
 
-def choose(rows: list[dict[str, Any]], count: int, label: str, per_speaker: int | None = None) -> list[dict[str, Any]]:
+def choose(rows: list[dict[str, Any]], count: int, label: str, per_speaker: int | None = None, group_field: str = "speaker") -> list[dict[str, Any]]:
     if per_speaker:
         selected: list[dict[str, Any]] = []
         counts: dict[str, int] = {}
         for row in sorted(rows, key=lambda item: rank(item["id"])):
-            speaker = row.get("speaker", row["id"])
+            speaker = row.get(group_field, row["id"])
             if counts.get(speaker, 0) < per_speaker:
                 selected.append(row)
                 counts[speaker] = counts.get(speaker, 0) + 1
@@ -82,14 +82,15 @@ def fleurs(root: Path, count: int) -> list[dict[str, Any]]:
         for line_number, fields in enumerate(csv.reader(handle, delimiter="\t"), 1):
             if len(fields) < 3:
                 raise ValueError(f"{tsv}:{line_number}: expected at least 3 TSV columns")
-            speaker, filename, reference = fields[:3]
+            corpus_id, filename, reference = fields[:3]
             path = (clips / filename).resolve()
             if path.parent != clips.resolve() or not path.is_file() or not reference.strip():
                 continue
             rows.append({"id": f"fleurs-cmn-hans-cn:{path.stem}", "audio_path": str(path),
                          "reference": reference.strip(), "source": "fleurs-cmn-hans-cn", "split": "test",
-                         "speaker": speaker, "tags": ["read"]})
-    return choose(rows, count, "FLEURS cmn_hans_cn", per_speaker=3)
+                         "corpus_id": corpus_id, "tags": ["read"]})
+    # The first TSV column is a corpus/text ID, not a speaker identifier.
+    return choose(rows, count, "FLEURS cmn_hans_cn", per_speaker=3, group_field="corpus_id")
 
 
 def wenetspeech(root: Path, net_count: int, meeting_count: int) -> list[dict[str, Any]]:

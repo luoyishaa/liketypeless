@@ -30,12 +30,17 @@ def merge(predictions: dict[str, dict], reviews: list[dict[str, str]]) -> dict[s
             raise ValueError(f"Review ID not in predictions: {identifier}")
         if not row.get("reviewer", "").strip():
             raise ValueError(f"{identifier}: reviewer required")
+        for field in ("asr_text", "structured_text", "translation"):
+            if field in row and row[field] != predictions[identifier].get(field, ""):
+                raise ValueError(f"{identifier}: review refers to different {field}; regenerate the review sheet")
         grouped[identifier].append(row)
     for identifier, rows in grouped.items():
         regular = [row for row in rows if row["reviewer"].strip().lower() != "adjudicator"]
         adjudicators = [row for row in rows if row["reviewer"].strip().lower() == "adjudicator"]
-        if len(regular) != 2 or len({row["reviewer"] for row in regular}) != 2:
+        if len(regular) != 2 or len({row["reviewer"].strip().casefold() for row in regular}) != 2:
             raise ValueError(f"{identifier}: exactly two distinct reviewers required")
+        if len(adjudicators) > 1:
+            raise ValueError(f"{identifier}: at most one adjudicator row is allowed")
         decisions: dict[str, bool] = {}
         for field in BOOLEAN_FIELDS if "structured_text" in predictions[identifier] else ():
             values = [parse_boolean(row[field]) for row in regular]
@@ -48,6 +53,10 @@ def merge(predictions: dict[str, dict], reviews: list[dict[str, str]]) -> dict[s
         scores = {}
         for field in SCORE_FIELDS:
             values = [int(row[field]) for row in regular if row.get(field, "").strip()]
+            applicable = (field.startswith("asr_") and "asr_text" in predictions[identifier]
+                          or field.startswith("translation_") and "translation" in predictions[identifier])
+            if applicable and len(values) != 2:
+                raise ValueError(f"{identifier}: both reviewers must score {field} from 1 to 5")
             if values and (len(values) != 2 or any(value < 1 or value > 5 for value in values)):
                 raise ValueError(f"{identifier}: both reviewers must score {field} from 1 to 5")
             if values:
@@ -63,12 +72,14 @@ def merge(predictions: dict[str, dict], reviews: list[dict[str, str]]) -> dict[s
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--predictions", type=Path, required=True)
-    parser.add_argument("--reviews", type=Path, required=True)
+    parser.add_argument("--reviews", type=Path, nargs="+", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     predictions = read_jsonl(args.predictions)
-    with args.reviews.open(encoding="utf-8-sig", newline="") as handle:
-        reviews = [row for row in csv.DictReader(handle) if row.get("reviewer", "").strip()]
+    reviews = []
+    for path in args.reviews:
+        with path.open(encoding="utf-8-sig", newline="") as handle:
+            reviews.extend(row for row in csv.DictReader(handle) if row.get("reviewer", "").strip())
     merged = merge(predictions, reviews)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in merged.values()), encoding="utf-8")

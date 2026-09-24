@@ -1,0 +1,69 @@
+{
+  "schema_version": 4,
+  "manifest_sha256": "9b287cdc21f6c08dab1a7fa9eb821c5657b2dfffe0b8a7ccc34d439b29fe7e53",
+  "prediction_sha256": "cd5350225c39c508a19ca50474e7a46c507d0f8d15e32e81f7b2d073a8c7d295",
+  "sample_count": 8,
+  "overall": {
+    "samples": 8,
+    "asr": {
+      "cer": null,
+      "character_errors": 0,
+      "reference_characters": 0,
+      "samples": 0,
+      "human_reviewed": 0,
+      "human_faithfulness_mean_1_to_5": null
+    },
+    "latency_ms": {
+      "p50": 413.464,
+      "p95": 10326.162,
+      "samples": 8
+    },
+    "asr_real_time_factor": null
+  },
+  "by_source": {
+    "authored-temporal-validation": {
+      "samples": 8,
+      "asr": {
+        "cer": null,
+        "character_errors": 0,
+        "reference_characters": 0,
+        "samples": 0,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 413.464,
+        "p95": 10326.162,
+        "samples": 8
+      },
+      "asr_real_time_factor": null
+    }
+  },
+  "by_duration": {},
+  "by_reference_length": {},
+  "safety": {
+    "structure_samples": 8,
+    "protected_term_recall": 1.0,
+    "protected_terms": 12,
+    "automatic_violation_rate": 0.0,
+    "automatic_violation_ids": [],
+    "human_reviewed": 0,
+    "human_faithful_rate": null
+  },
+  "translation": {
+    "samples": 8,
+    "chrf_plus_plus": 63.6918,
+    "automatic_checked_samples": 8,
+    "automatic_violation_rate": 0.25,
+    "automatic_violation_ids": [
+      "date-02",
+      "date-04"
+    ],
+    "human_reviewed": 0,
+    "human_faithfulness_mean_1_to_5": null,
+    "human_naturalness_mean_1_to_5": null
+  },
+  "limitations": [
+    "Automatic structure checks cover annotated terms and forbidden phrases; semantic fidelity requires human review."
+  ]
+}
