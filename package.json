@@ -14,7 +14,9 @@
     "check": "npm --workspace @liketypeless/shared run check && npm --workspace @liketypeless/desktop run check",
     "check:api": "cd apps/local-api && python -m compileall app scripts",
     "download:stt": "cd apps/local-api && python scripts/download_stt_model.py --model small",
-    "dist": "npm --workspace apps/desktop run dist"
+    "dist": "npm --workspace apps/desktop run dist",
+    "eval:fixture": "python evals/scripts/evaluate.py --manifest evals/fixtures/manifest.jsonl --predictions evals/predictions/baseline.jsonl --output evals/reports/latest.json",
+    "eval:compare": "python evals/scripts/compare_baseline.py --baseline evals/reports/baseline.json --candidate evals/reports/latest.json"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

@@ -1,0 +1,26 @@
+name: Evaluation regression
+
+on:
+  pull_request:
+    paths:
+      - "apps/local-api/app/**"
+      - "evals/**"
+      - ".github/workflows/eval-regression.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/local-api/app/**"
+      - "evals/**"
+
+jobs:
+  fixture-evaluation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Generate fixture evaluation report
+        run: python evals/scripts/evaluate.py --manifest evals/fixtures/manifest.jsonl --predictions evals/predictions/baseline.jsonl --output evals/reports/ci-candidate.json
+      - name: Compare with baseline
+        run: python evals/scripts/compare_baseline.py --baseline evals/reports/baseline.json --candidate evals/reports/ci-candidate.json >> $GITHUB_STEP_SUMMARY

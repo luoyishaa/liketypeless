@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "samples": {
+    "manifest": 3,
+    "matched": 3,
+    "missing_predictions": []
+  },
+  "asr": {
+    "cer": 0.0,
+    "character_errors": 0,
+    "reference_characters": 50
+  },
+  "latency_ms": {
+    "p50": 820.0,
+    "p95": 930.0,
+    "count": 3
+  },
+  "safety": {
+    "protected_term_recall": 1.0,
+    "unsafe_output_rate": 0.0,
+    "protected_terms": 6
+  },
+  "translation": {
+    "exact_match_rate": 1.0,
+    "count": 3
+  }
+}

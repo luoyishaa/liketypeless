@@ -14,3 +14,5 @@ __pycache__/
 *.log
 apps/local-api/.pytest_cache/
 apps/local-api/data/
+evals/manifests/dataset-roots.json
+evals/reports/ci-candidate.json
