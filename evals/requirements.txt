@@ -1,0 +1,4 @@
+sacrebleu==2.6.0
+ijson==3.5.1
+imageio-ffmpeg==0.6.0
+pydantic==2.13.4

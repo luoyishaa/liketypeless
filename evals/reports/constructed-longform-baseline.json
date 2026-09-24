@@ -1,0 +1,99 @@
+{
+  "schema_version": 4,
+  "manifest_sha256": "f0edc99a465a68f82f6974b36e4e13cdb1101d759b1dbcf387df4510898dc21c",
+  "prediction_sha256": "22721bce2107272bebb3650fd65ff80cc5d90b7def1ca6f0d5e4b864710da5f6",
+  "sample_count": 10,
+  "overall": {
+    "samples": 10,
+    "asr": {
+      "cer": 0.348511,
+      "character_errors": 1217,
+      "reference_characters": 3492,
+      "samples": 10,
+      "human_reviewed": 0,
+      "human_faithfulness_mean_1_to_5": null
+    },
+    "latency_ms": {
+      "p50": 1574.569,
+      "p95": 9452.441,
+      "samples": 10
+    },
+    "asr_real_time_factor": 0.021737
+  },
+  "by_source": {
+    "constructed-longform": {
+      "samples": 10,
+      "asr": {
+        "cer": 0.348511,
+        "character_errors": 1217,
+        "reference_characters": 3492,
+        "samples": 10,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 1574.569,
+        "p95": 9452.441,
+        "samples": 10
+      },
+      "asr_real_time_factor": 0.021737
+    }
+  },
+  "by_duration": {
+    "gte30s": {
+      "samples": 10,
+      "asr": {
+        "cer": 0.348511,
+        "character_errors": 1217,
+        "reference_characters": 3492,
+        "samples": 10,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 1574.569,
+        "p95": 9452.441,
+        "samples": 10
+      },
+      "asr_real_time_factor": 0.021737
+    }
+  },
+  "by_reference_length": {
+    "gte20chars": {
+      "samples": 10,
+      "asr": {
+        "cer": 0.348511,
+        "character_errors": 1217,
+        "reference_characters": 3492,
+        "samples": 10,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 1574.569,
+        "p95": 9452.441,
+        "samples": 10
+      },
+      "asr_real_time_factor": 0.021737
+    }
+  },
+  "safety": {
+    "structure_samples": 0,
+    "protected_term_recall": null,
+    "protected_terms": 0,
+    "automatic_violation_rate": null,
+    "automatic_violation_ids": [],
+    "human_reviewed": 0,
+    "human_faithful_rate": null
+  },
+  "translation": {
+    "samples": 0,
+    "chrf_plus_plus": null,
+    "human_reviewed": 0,
+    "human_faithfulness_mean_1_to_5": null,
+    "human_naturalness_mean_1_to_5": null
+  },
+  "limitations": [
+    "Automatic structure checks cover annotated terms and forbidden phrases; semantic fidelity requires human review."
+  ]
+}

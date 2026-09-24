@@ -1,0 +1,150 @@
+{
+  "schema_version": 4,
+  "manifest_sha256": "1ed47891979f86e31051f7d3411fa5e2f63ae614e58e4333b501bdfc20829627",
+  "prediction_sha256": "883508fb5996baba465d82935948163488f8afe421e32181eed905cb8ad34798",
+  "sample_count": 150,
+  "overall": {
+    "samples": 150,
+    "asr": {
+      "cer": 0.37072,
+      "character_errors": 1061,
+      "reference_characters": 2862,
+      "samples": 150,
+      "human_reviewed": 0,
+      "human_faithfulness_mean_1_to_5": null
+    },
+    "latency_ms": {
+      "p50": 147.742,
+      "p95": 467.499,
+      "samples": 150
+    },
+    "asr_real_time_factor": 0.061892
+  },
+  "by_source": {
+    "aishell-4-meeting": {
+      "samples": 150,
+      "asr": {
+        "cer": 0.37072,
+        "character_errors": 1061,
+        "reference_characters": 2862,
+        "samples": 150,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 147.742,
+        "p95": 467.499,
+        "samples": 150
+      },
+      "asr_real_time_factor": 0.061892
+    }
+  },
+  "by_duration": {
+    "10to30s": {
+      "samples": 13,
+      "asr": {
+        "cer": 0.304897,
+        "character_errors": 193,
+        "reference_characters": 633,
+        "samples": 13,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 283.799,
+        "p95": 8522.656,
+        "samples": 13
+      },
+      "asr_real_time_factor": 0.073738
+    },
+    "lt10s": {
+      "samples": 137,
+      "asr": {
+        "cer": 0.389412,
+        "character_errors": 868,
+        "reference_characters": 2229,
+        "samples": 137,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 141.511,
+        "p95": 351.049,
+        "samples": 137
+      },
+      "asr_real_time_factor": 0.058422
+    }
+  },
+  "by_reference_length": {
+    "5to19chars": {
+      "samples": 68,
+      "asr": {
+        "cer": 0.4324,
+        "character_errors": 355,
+        "reference_characters": 821,
+        "samples": 68,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 122.066,
+        "p95": 541.508,
+        "samples": 68
+      },
+      "asr_real_time_factor": 0.08548
+    },
+    "gte20chars": {
+      "samples": 61,
+      "asr": {
+        "cer": 0.337349,
+        "character_errors": 672,
+        "reference_characters": 1992,
+        "samples": 61,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 196.114,
+        "p95": 399.919,
+        "samples": 61
+      },
+      "asr_real_time_factor": 0.048215
+    },
+    "lt5chars": {
+      "samples": 21,
+      "asr": {
+        "cer": 0.693878,
+        "character_errors": 34,
+        "reference_characters": 49,
+        "samples": 21,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 85.306,
+        "p95": 312.137,
+        "samples": 21
+      },
+      "asr_real_time_factor": 0.132505
+    }
+  },
+  "safety": {
+    "structure_samples": 0,
+    "protected_term_recall": null,
+    "protected_terms": 0,
+    "automatic_violation_rate": null,
+    "automatic_violation_ids": [],
+    "human_reviewed": 0,
+    "human_faithful_rate": null
+  },
+  "translation": {
+    "samples": 0,
+    "chrf_plus_plus": null,
+    "human_reviewed": 0,
+    "human_faithfulness_mean_1_to_5": null,
+    "human_naturalness_mean_1_to_5": null
+  },
+  "limitations": [
+    "Automatic structure checks cover annotated terms and forbidden phrases; semantic fidelity requires human review."
+  ]
+}

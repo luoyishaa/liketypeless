@@ -1,3 +1,0 @@
-{"id":"fixture-001","audio_path":"fixtures/placeholder.wav","reference":"请把明天上午十点的会议改到下午两点。","source":"fixture","split":"test","tags":["number","punctuation"]}
-{"id":"fixture-002","audio_path":"fixtures/placeholder.wav","reference":"第一，检查本地模型。第二，确认快捷键不会冲突。","source":"fixture","split":"test","tags":["list","protected"]}
-{"id":"fixture-003","audio_path":"fixtures/placeholder.wav","reference":"这个 API 的超时时间是 20 秒。","source":"fixture","split":"test","tags":["english","number"]}

@@ -83,12 +83,16 @@ class LocalFasterWhisperProvider:
         duration = self._audio_duration_seconds(file_path)
         chunk_seconds = settings.stt_chunk_seconds
         if chunk_seconds <= 0 or duration <= chunk_seconds:
-            return self._transcribe_single_file(model, file_path, language)
+            return self._transcribe_single_file(
+                model, file_path, language, without_timestamps=False if duration > 30 else None
+            )
 
         return self._transcribe_in_chunks(model, file_path, language, duration, chunk_seconds)
 
-    def _transcribe_single_file(self, model, file_path: Path, language: str) -> tuple[list[TranscriptSegment], str, float]:
-        segments_iter, info = self._transcribe_with_optional_vad(model, file_path, language)
+    def _transcribe_single_file(
+        self, model, file_path: Path, language: str, without_timestamps: bool | None = None
+    ) -> tuple[list[TranscriptSegment], str, float]:
+        segments_iter, info = self._transcribe_with_optional_vad(model, file_path, language, without_timestamps)
         return (
             self._collect_segments(segments_iter),
             str(getattr(info, "language", language) or language),
@@ -102,7 +106,9 @@ class LocalFasterWhisperProvider:
         detected_language = language
         with tempfile.TemporaryDirectory(prefix="liketypeless-stt-") as temporary_directory:
             for offset_seconds, chunk_path in self._write_wav_chunks(file_path, Path(temporary_directory), chunk_seconds):
-                segments, chunk_language, _chunk_duration = self._transcribe_single_file(model, chunk_path, detected_language)
+                segments, chunk_language, _chunk_duration = self._transcribe_single_file(
+                    model, chunk_path, detected_language, without_timestamps=False
+                )
                 detected_language = chunk_language or detected_language
                 all_segments.extend(
                     TranscriptSegment(
@@ -145,14 +151,17 @@ class LocalFasterWhisperProvider:
                 offset_frames += len(audio_frames)
                 index += 1
 
-    def _transcribe_with_optional_vad(self, model, file_path: Path, language: str):
+    def _transcribe_with_optional_vad(
+        self, model, file_path: Path, language: str, without_timestamps: bool | None = None
+    ):
+        suppress_timestamps = settings.stt_without_timestamps if without_timestamps is None else without_timestamps
         if not settings.stt_vad_filter:
             return model.transcribe(
                 str(file_path),
                 language=language,
                 vad_filter=False,
                 beam_size=settings.stt_beam_size,
-                without_timestamps=settings.stt_without_timestamps,
+                without_timestamps=suppress_timestamps,
             )
 
         try:
@@ -161,7 +170,7 @@ class LocalFasterWhisperProvider:
                 language=language,
                 vad_filter=True,
                 beam_size=settings.stt_beam_size,
-                without_timestamps=settings.stt_without_timestamps,
+                without_timestamps=suppress_timestamps,
             )
         except Exception as exc:
             if "onnxruntime" not in str(exc).lower() and "vad" not in str(exc).lower():
@@ -172,7 +181,7 @@ class LocalFasterWhisperProvider:
                 language=language,
                 vad_filter=False,
                 beam_size=settings.stt_beam_size,
-                without_timestamps=settings.stt_without_timestamps,
+                without_timestamps=suppress_timestamps,
             )
 
     def _collect_segments(self, segments_iter) -> list[TranscriptSegment]:

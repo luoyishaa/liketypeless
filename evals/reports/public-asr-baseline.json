@@ -1,0 +1,184 @@
+{
+  "schema_version": 4,
+  "manifest_sha256": "3acbcdb2d47a55e113d8a546b9f4bfcfeb7b50dfe293d2eedff878cc38896f72",
+  "prediction_sha256": "dc6c525cece4ff65cb5ee32897a6e73a9b8d873a210bc5a2b990356dc687d0ed",
+  "sample_count": 600,
+  "overall": {
+    "samples": 600,
+    "asr": {
+      "cer": 0.138612,
+      "character_errors": 1712,
+      "reference_characters": 12351,
+      "samples": 600,
+      "human_reviewed": 0,
+      "human_faithfulness_mean_1_to_5": null
+    },
+    "latency_ms": {
+      "p50": 154.742,
+      "p95": 315.216,
+      "samples": 600
+    },
+    "asr_real_time_factor": 0.027154
+  },
+  "by_source": {
+    "aishell-1": {
+      "samples": 300,
+      "asr": {
+        "cer": 0.126617,
+        "character_errors": 558,
+        "reference_characters": 4407,
+        "samples": 300,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 138.193,
+        "p95": 183.796,
+        "samples": 300
+      },
+      "asr_real_time_factor": 0.032766
+    },
+    "common-voice-zh-cn": {
+      "samples": 150,
+      "asr": {
+        "cer": 0.20401,
+        "character_errors": 468,
+        "reference_characters": 2294,
+        "samples": 150,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 149.952,
+        "p95": 265.661,
+        "samples": 150
+      },
+      "asr_real_time_factor": 0.026497
+    },
+    "fleurs-cmn-hans-cn": {
+      "samples": 150,
+      "asr": {
+        "cer": 0.121416,
+        "character_errors": 686,
+        "reference_characters": 5650,
+        "samples": 150,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 249.129,
+        "p95": 449.514,
+        "samples": 150
+      },
+      "asr_real_time_factor": 0.022709
+    }
+  },
+  "by_duration": {
+    "10to30s": {
+      "samples": 101,
+      "asr": {
+        "cer": 0.123209,
+        "character_errors": 516,
+        "reference_characters": 4188,
+        "samples": 101,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 274.664,
+        "p95": 450.506,
+        "samples": 101
+      },
+      "asr_real_time_factor": 0.020665
+    },
+    "lt10s": {
+      "samples": 499,
+      "asr": {
+        "cer": 0.146515,
+        "character_errors": 1196,
+        "reference_characters": 8163,
+        "samples": 499,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 145.658,
+        "p95": 244.832,
+        "samples": 499
+      },
+      "asr_real_time_factor": 0.030444
+    }
+  },
+  "by_reference_length": {
+    "5to19chars": {
+      "samples": 355,
+      "asr": {
+        "cer": 0.15493,
+        "character_errors": 726,
+        "reference_characters": 4686,
+        "samples": 355,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 133.754,
+        "p95": 180.931,
+        "samples": 355
+      },
+      "asr_real_time_factor": 0.03233
+    },
+    "gte20chars": {
+      "samples": 235,
+      "asr": {
+        "cer": 0.125262,
+        "character_errors": 956,
+        "reference_characters": 7632,
+        "samples": 235,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 214.911,
+        "p95": 416.641,
+        "samples": 235
+      },
+      "asr_real_time_factor": 0.023234
+    },
+    "lt5chars": {
+      "samples": 10,
+      "asr": {
+        "cer": 0.909091,
+        "character_errors": 30,
+        "reference_characters": 33,
+        "samples": 10,
+        "human_reviewed": 0,
+        "human_faithfulness_mean_1_to_5": null
+      },
+      "latency_ms": {
+        "p50": 111.705,
+        "p95": 244.832,
+        "samples": 10
+      },
+      "asr_real_time_factor": 0.043191
+    }
+  },
+  "safety": {
+    "structure_samples": 0,
+    "protected_term_recall": null,
+    "protected_terms": 0,
+    "automatic_violation_rate": null,
+    "automatic_violation_ids": [],
+    "human_reviewed": 0,
+    "human_faithful_rate": null
+  },
+  "translation": {
+    "samples": 0,
+    "chrf_plus_plus": null,
+    "human_reviewed": 0,
+    "human_faithfulness_mean_1_to_5": null,
+    "human_naturalness_mean_1_to_5": null
+  },
+  "limitations": [
+    "Automatic structure checks cover annotated terms and forbidden phrases; semantic fidelity requires human review."
+  ]
+}

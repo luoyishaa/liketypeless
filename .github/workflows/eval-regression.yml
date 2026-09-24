@@ -4,23 +4,48 @@ on:
   pull_request:
     paths:
       - "apps/local-api/app/**"
+      - "apps/desktop/src/main/**"
+      - "apps/desktop/src/preload/**"
+      - "apps/desktop/src/renderer/main.tsx"
+      - "packages/shared/src/**"
       - "evals/**"
       - ".github/workflows/eval-regression.yml"
   push:
     branches: [main]
     paths:
       - "apps/local-api/app/**"
+      - "apps/desktop/src/main/**"
+      - "apps/desktop/src/preload/**"
+      - "apps/desktop/src/renderer/main.tsx"
+      - "packages/shared/src/**"
       - "evals/**"
+      - ".github/workflows/eval-regression.yml"
 
 jobs:
-  fixture-evaluation:
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Generate fixture evaluation report
-        run: python evals/scripts/evaluate.py --manifest evals/fixtures/manifest.jsonl --predictions evals/predictions/baseline.jsonl --output evals/reports/ci-candidate.json
-      - name: Compare with baseline
-        run: python evals/scripts/compare_baseline.py --baseline evals/reports/baseline.json --candidate evals/reports/ci-candidate.json >> $GITHUB_STEP_SUMMARY
+      - name: Install evaluation dependencies
+        run: pip install -r evals/requirements.txt
+      - name: Test metrics and dataset adapters
+        run: python -m unittest discover -s evals/tests -v
+      - name: Run product text fallback on fixed cases
+        run: |
+          python evals/scripts/run_text_regression.py --manifest evals/fixtures/text-regression.jsonl --output evals/predictions/ci-text.jsonl
+          python evals/scripts/evaluate.py --manifest evals/fixtures/text-regression.jsonl --predictions evals/predictions/ci-text.jsonl --output evals/reports/ci-text.json
+      - name: Compare text safety with baseline
+        run: |
+          set -o pipefail
+          python evals/scripts/compare_baseline.py --baseline evals/reports/text-baseline.json --candidate evals/reports/ci-text.json | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Check real benchmark evidence for inference changes
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -o pipefail
+          python evals/scripts/check_quality_evidence.py --base-ref "$BASE_REF" | tee -a "$GITHUB_STEP_SUMMARY"
