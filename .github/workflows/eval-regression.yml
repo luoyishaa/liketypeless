@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "apps/local-api/app/**"
+      - "apps/local-api/scripts/sensevoice_runner.py"
+      - "apps/local-api/requirements.txt"
       - "apps/desktop/src/main/**"
       - "apps/desktop/src/preload/**"
       - "apps/desktop/src/renderer/main.tsx"
@@ -14,6 +16,8 @@ on:
     branches: [main]
     paths:
       - "apps/local-api/app/**"
+      - "apps/local-api/scripts/sensevoice_runner.py"
+      - "apps/local-api/requirements.txt"
       - "apps/desktop/src/main/**"
       - "apps/desktop/src/preload/**"
       - "apps/desktop/src/renderer/main.tsx"

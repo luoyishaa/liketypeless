@@ -1,0 +1,51 @@
+{
+  "by_source": {
+    "aishell-1": {
+      "character_errors": 558,
+      "substitutions": 485,
+      "deletions": 50,
+      "insertions": 23,
+      "samples": 300,
+      "reference_characters": 4407,
+      "exact_matches": 114,
+      "number_review": 97,
+      "number_format_candidate": 39,
+      "negation_review": 43,
+      "unexpected_latin": 4,
+      "cer": 0.126617
+    },
+    "common-voice-zh-cn": {
+      "character_errors": 468,
+      "substitutions": 440,
+      "deletions": 19,
+      "insertions": 9,
+      "samples": 150,
+      "reference_characters": 2294,
+      "exact_matches": 24,
+      "number_review": 48,
+      "short_reference": 10,
+      "major_deletion": 1,
+      "negation_review": 15,
+      "number_format_candidate": 4,
+      "unexpected_latin": 2,
+      "cer": 0.20401
+    },
+    "fleurs-cmn-hans-cn": {
+      "character_errors": 686,
+      "substitutions": 422,
+      "deletions": 240,
+      "insertions": 24,
+      "samples": 150,
+      "reference_characters": 5650,
+      "exact_matches": 24,
+      "number_review": 73,
+      "negation_review": 46,
+      "number_format_candidate": 3,
+      "cer": 0.121416
+    }
+  },
+  "limitations": [
+    "Flags identify review candidates, not verified causes. Number formatting is not automatically forgiven.",
+    "S/D/I counts use one deterministic minimum-edit alignment; equal-cost alignments may differ."
+  ]
+}

@@ -1,0 +1,169 @@
+{
+  "manifest_sha256": "3acbcdb2d47a55e113d8a546b9f4bfcfeb7b50dfe293d2eedff878cc38896f72",
+  "candidate_manifest_sha256": "3acbcdb2d47a55e113d8a546b9f4bfcfeb7b50dfe293d2eedff878cc38896f72",
+  "comparison_type": "provider_configuration",
+  "baseline": {
+    "cer": {
+      "values": [
+        0.13845,
+        0.138612,
+        0.138612
+      ],
+      "median": 0.138612,
+      "min": 0.13845,
+      "max": 0.138612
+    },
+    "p50_ms": {
+      "values": [
+        155.12,
+        151.706,
+        150.406
+      ],
+      "median": 151.706,
+      "min": 150.406,
+      "max": 155.12
+    },
+    "p95_ms": {
+      "values": [
+        291.632,
+        287.521,
+        282.288
+      ],
+      "median": 287.521,
+      "min": 282.288,
+      "max": 291.632
+    },
+    "warmup_ms": 10618.209,
+    "provider": "local-faster-whisper",
+    "device": "cuda",
+    "coordinator_python": "3.12.4",
+    "product_code_sha256": "9d701ef74fbb1c4ecd3b0656ec2c7d6c14634b66d315274cbca4d7ba6d2c073e",
+    "packages": {
+      "faster-whisper": "1.2.1",
+      "ctranslate2": "4.6.0"
+    }
+  },
+  "candidate": {
+    "cer": {
+      "values": [
+        0.13084,
+        0.13084,
+        0.13084
+      ],
+      "median": 0.13084,
+      "min": 0.13084,
+      "max": 0.13084
+    },
+    "p50_ms": {
+      "values": [
+        166.317,
+        161.902,
+        161.968
+      ],
+      "median": 161.968,
+      "min": 161.902,
+      "max": 166.317
+    },
+    "p95_ms": {
+      "values": [
+        313.841,
+        304.627,
+        299.397
+      ],
+      "median": 304.627,
+      "min": 299.397,
+      "max": 313.841
+    },
+    "warmup_ms": 1695.65,
+    "provider": "local-faster-whisper",
+    "device": "cuda",
+    "coordinator_python": "3.12.4",
+    "product_code_sha256": "9d701ef74fbb1c4ecd3b0656ec2c7d6c14634b66d315274cbca4d7ba6d2c073e",
+    "packages": {
+      "faster-whisper": "1.2.1",
+      "ctranslate2": "4.6.0"
+    }
+  },
+  "baseline_process": {
+    "exit_code": 3221226505,
+    "completed_report_exists": true,
+    "note": "Observed after all three trials were written, before explicit native model unloading was added to the benchmark harness. One-utterance reproduction exited normally. Cause not established."
+  },
+  "candidate_process": {
+    "exit_code": 3221226505,
+    "completed_report_exists": true
+  },
+  "paired": {
+    "samples": 600,
+    "clusters": 170,
+    "cer_before": 0.13845,
+    "cer_after": 0.13084,
+    "absolute_cer_delta": -0.007611,
+    "relative_error_change": -0.054971,
+    "cer_delta_95pct_cluster_bootstrap": null,
+    "bootstrap_draws": 0,
+    "changed_transcripts": 171,
+    "improved_utterances": 85,
+    "worsened_utterances": 42,
+    "tied_utterances": 473,
+    "interval_note": "Too few independent clusters, unavailable speaker IDs, or constructed stress audio; no confidence interval is claimed."
+  },
+  "by_source": {
+    "aishell-1": {
+      "samples": 300,
+      "clusters": 20,
+      "cer_before": 0.126617,
+      "cer_after": 0.117994,
+      "absolute_cer_delta": -0.008623,
+      "relative_error_change": -0.0681,
+      "cer_delta_95pct_cluster_bootstrap": [
+        -0.012795,
+        -0.004403
+      ],
+      "bootstrap_draws": 2000,
+      "changed_transcripts": 64,
+      "improved_utterances": 32,
+      "worsened_utterances": 13,
+      "tied_utterances": 255,
+      "interval_note": "Paired cluster bootstrap; first trial only; assumes sampled clusters are representative."
+    },
+    "common-voice-zh-cn": {
+      "samples": 150,
+      "clusters": 149,
+      "cer_before": 0.203139,
+      "cer_after": 0.186574,
+      "absolute_cer_delta": -0.016565,
+      "relative_error_change": -0.081545,
+      "cer_delta_95pct_cluster_bootstrap": [
+        -0.027171,
+        -0.007286
+      ],
+      "bootstrap_draws": 2000,
+      "changed_transcripts": 50,
+      "improved_utterances": 27,
+      "worsened_utterances": 9,
+      "tied_utterances": 114,
+      "interval_note": "Paired cluster bootstrap; first trial only; assumes sampled clusters are representative."
+    },
+    "fleurs-cmn-hans-cn": {
+      "samples": 150,
+      "clusters": 1,
+      "cer_before": 0.121416,
+      "cer_after": 0.11823,
+      "absolute_cer_delta": -0.003186,
+      "relative_error_change": -0.026239,
+      "cer_delta_95pct_cluster_bootstrap": null,
+      "bootstrap_draws": 0,
+      "changed_transcripts": 57,
+      "improved_utterances": 26,
+      "worsened_utterances": 20,
+      "tied_utterances": 104,
+      "interval_note": "Too few independent clusters, unavailable speaker IDs, or constructed stress audio; no confidence interval is claimed."
+    }
+  },
+  "limitations": [
+    "Latency compares deployed configurations, not equal hardware: SenseVoice currently uses CPU, Whisper uses CUDA when available.",
+    "Three trials describe local variability, not a latency confidence interval. No recording/UI/paste time is included.",
+    "Known test sets and diagnostic slices must not be treated as a new unseen holdout or official leaderboard score."
+  ]
+}
