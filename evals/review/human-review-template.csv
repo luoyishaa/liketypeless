@@ -1,4 +1,1 @@
-id,reviewer,asr_faithful_1_to_5,structured_preserves_meaning_yes_no,structured_deleted_meaningful_content_yes_no,structured_added_information_yes_no,protected_terms_preserved_yes_no,punctuation_appropriate_yes_no,translation_faithful_1_to_5,translation_natural_1_to_5,notes
-fixture-001,,,,,,,,,
-fixture-002,,,,,,,,,
-fixture-003,,,,,,,,,
+id,reviewer,source,audio_path,reference,input_text,asr_text,structured_text,protected_terms,forbidden_phrases,translation_reference,translation,asr_faithfulness_1_to_5,meaning_preserved,deleted_meaningful_content,added_information,protected_terms_preserved,punctuation_appropriate,translation_faithfulness_1_to_5,translation_naturalness_1_to_5,notes

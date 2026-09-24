@@ -16,3 +16,6 @@ apps/local-api/.pytest_cache/
 apps/local-api/data/
 evals/manifests/dataset-roots.json
 evals/reports/ci-candidate.json
+evals/reports/ci-text.json
+evals/predictions/ci-text.jsonl
+evals/local/

@@ -15,8 +15,8 @@
     "check:api": "cd apps/local-api && python -m compileall app scripts",
     "download:stt": "cd apps/local-api && python scripts/download_stt_model.py --model small",
     "dist": "npm --workspace apps/desktop run dist",
-    "eval:fixture": "python evals/scripts/evaluate.py --manifest evals/fixtures/manifest.jsonl --predictions evals/predictions/baseline.jsonl --output evals/reports/latest.json",
-    "eval:compare": "python evals/scripts/compare_baseline.py --baseline evals/reports/baseline.json --candidate evals/reports/latest.json"
+    "eval:fixture": "python evals/scripts/run_text_regression.py --manifest evals/fixtures/text-regression.jsonl --output evals/predictions/ci-text.jsonl && python evals/scripts/evaluate.py --manifest evals/fixtures/text-regression.jsonl --predictions evals/predictions/ci-text.jsonl --output evals/reports/ci-text.json",
+    "eval:compare": "python evals/scripts/compare_baseline.py --baseline evals/reports/text-baseline.json --candidate evals/reports/ci-text.json"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
