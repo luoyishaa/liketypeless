@@ -4,6 +4,8 @@ numpy==1.26.4
 sounddevice==0.5.3
 soundfile==0.13.1
 faster-whisper==1.2.1
-ctranslate2==4.6.0
+ctranslate2==4.8.2
+av==18.0.0
+tokenizers==0.23.1
 setuptools<81
 opencc-python-reimplemented==0.1.7

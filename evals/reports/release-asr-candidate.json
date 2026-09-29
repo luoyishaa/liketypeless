@@ -1,0 +1,93 @@
+{
+  "status": "candidate-not-human-accepted",
+  "requirements_lock_sha256": "07e1cc728512f36b8b3ec6de2f98936892a9b6b51c99e55013cdcaa63c32ccbc",
+  "suites": {
+    "read": {
+      "manifest_sha256": "3acbcdb2d47a55e113d8a546b9f4bfcfeb7b50dfe293d2eedff878cc38896f72",
+      "sample_count": 600,
+      "baseline_median_cer": 0.138612,
+      "candidate_median_cer": 0.138855,
+      "delta_percentage_points": 0.0243,
+      "within_one_percentage_point": true,
+      "repeat_count": 3,
+      "trial_cer": [
+        0.138855,
+        0.138855,
+        0.139017
+      ],
+      "trial_prediction_sha256": [
+        "63d5e33da13fc21e3ecbb1d705efc666a3abf4f2a10322ba78fceaeebd409aa7",
+        "95d7f06f7cdb3a346ce0dc266c8f47062d44807966977d73dc1f07852494ac33",
+        "cfe3ade6d4022e52cd3a0cfe823d14e6b9c04f0c10e1a9808e426f1e64366657"
+      ],
+      "median_trial_asr_p95_ms": 299.464
+    },
+    "longform": {
+      "manifest_sha256": "f0edc99a465a68f82f6974b36e4e13cdb1101d759b1dbcf387df4510898dc21c",
+      "sample_count": 10,
+      "baseline_median_cer": 0.139748,
+      "candidate_median_cer": 0.140034,
+      "delta_percentage_points": 0.0286,
+      "within_one_percentage_point": true,
+      "repeat_count": 3,
+      "trial_cer": [
+        0.140034,
+        0.140034,
+        0.145762
+      ],
+      "trial_prediction_sha256": [
+        "1e86705c6e631338076e46725237866ca121468a11220c7cc237a436ea54082b",
+        "b39ee078c3da1d6a88d9044fd55e688e028cbae5e6e975d2a6ce09188c693cf1",
+        "18375eb994983cf1da364b1e8cb00f8c58c80d4c8eb1f4ed916287c45cff9c0f"
+      ],
+      "median_trial_asr_p95_ms": 6318.312
+    },
+    "short": {
+      "manifest_sha256": "5173f5517c1c31fe95c975b758b66cb636fefd1432706a12c79c9ee5563599c3",
+      "sample_count": 100,
+      "baseline_median_cer": 0.571429,
+      "candidate_median_cer": 0.580175,
+      "delta_percentage_points": 0.8746,
+      "within_one_percentage_point": true,
+      "repeat_count": 13,
+      "trial_cer": [
+        0.603499,
+        0.594752,
+        0.58309,
+        0.586006,
+        0.568513,
+        0.553936,
+        0.580175,
+        0.577259,
+        0.586006,
+        0.574344,
+        0.577259,
+        0.568513,
+        0.586006
+      ],
+      "trial_prediction_sha256": [
+        "31bd70de58bb6cdc76a3e17024c189710ab491549de569eb1f39df23c648e61b",
+        "abef44a0405330c5c621d0924b071e41fa609a5235f75340f25c5c0c69ebbb67",
+        "645e5c852d3ba2b2f8ce4f5a66cfb2559994c5399745e955c2d1632404048c07",
+        "42789c4311aae4c9e16cfa43dcb1009d0c1d416ff2df8246c0cf210b97dcb423",
+        "b6bc3b6d0946c8224a76c082c30ac82026aa90a984ec2802f2525c8dbc59d2a6",
+        "1b844946321e065028deb786b2d281691feeaaada81f8465dc38e75b1f6de788",
+        "2c2e215db57cc463651a73e9c134a7c7b6106d0716861dc6af663e1120ae96a0",
+        "8c03223a41fcd5fb7852255ba582ba042490a108d2c3adb7af73b01955f706b4",
+        "99eeaf0a0bb6e1aedb6880f86db5d145bf708765f2f24e6b1e15a798dc1618c0",
+        "880e3370bf70e1a769286cd3bb017f2c3879d0fc85993269a13ddcae69e4d183",
+        "5b8e29c4020068aa858172060166f62fc0bf95a27fcc1dd99a998429c953db36",
+        "4bf0fa59d50209d370fd0cec88281f4583e6a2f95daff8e421fa010a444fb239",
+        "92168cb3e8996a72891298b124c6782f527444903cb0c8a083fb425812db24a4"
+      ],
+      "median_trial_asr_p95_ms": 259.977
+    }
+  },
+  "limitations": [
+    "Repeated trials reuse the same utterances; they are not additional independent samples.",
+    "Timing measures ASR only, not stop-recording-to-usable-text or desktop paste.",
+    "Build and test activity overlapped some timings; not a controlled performance acceptance.",
+    "Short utterances exhibit temperature-fallback sampling variability; all 13 trials of the selected pinned configuration are included.",
+    "No human natural-dictation or clean-machine acceptance has been completed."
+  ]
+}

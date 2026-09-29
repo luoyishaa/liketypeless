@@ -42,13 +42,13 @@ class StructureResult:
     text: str
 
 
-def structure_text_hybrid(text: str) -> StructureResult:
+def structure_text_hybrid(text: str, timeout: float = 120) -> StructureResult:
     rules_text = structure_text_conservatively(text)
     if not rules_text:
         return StructureResult(provider=RULES_PROVIDER, text="")
 
     try:
-        llm_text = generate_chat_text(model=settings.default_model, system_prompt=SYSTEM_PROMPT, user_text=rules_text)
+        llm_text = generate_chat_text(model=settings.default_model, system_prompt=SYSTEM_PROMPT, user_text=rules_text, timeout=timeout)
     except OllamaError:
         return StructureResult(provider=RULES_PROVIDER, text=rules_text)
 

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import sys
 import threading
 from time import perf_counter
 from typing import Protocol
@@ -53,6 +54,12 @@ class LocalFasterWhisperProvider:
         self._loaded_compute_type: str | None = None
         self._converter = None
         self._dll_dirs_added = False
+        self._dll_handles = []
+        self._fallback_reason = None
+
+    def runtime_status(self):
+        return {"device": self._loaded_device, "computeType": self._loaded_compute_type,
+                "fallbackReason": self._fallback_reason}
 
     def transcribe(self, file_path: Path, language: str | None = None) -> TranscriptionResult:
         if not file_path.exists():
@@ -65,7 +72,17 @@ class LocalFasterWhisperProvider:
                 model = self._load_model()
                 segments, detected_language, duration = self._transcribe_audio(model, file_path, selected_language)
             except Exception as exc:
-                raise STTError(f"faster-whisper transcription failed: {exc}") from exc
+                if settings.stt_device == "auto" and self._loaded_device == "cuda":
+                    try:
+                        from faster_whisper import WhisperModel
+                        self._model = WhisperModel(self._configured_model_name(), device="cpu", compute_type="int8", local_files_only=True)
+                        self._loaded_device, self._loaded_compute_type = "cpu", "int8"
+                        self._fallback_reason = "GPU 处理失败，已回退 CPU。"
+                        segments, detected_language, duration = self._transcribe_audio(self._model, file_path, selected_language)
+                    except Exception as fallback_error:
+                        raise STTError(f"CPU 回退识别失败：{fallback_error}") from fallback_error
+                else:
+                    raise STTError(f"faster-whisper transcription failed: {exc}") from exc
 
         text = self._normalize_chinese("".join(segment.text for segment in segments).strip())
 
@@ -224,7 +241,7 @@ class LocalFasterWhisperProvider:
                 self._add_optional_nvidia_dll_paths()
                 from faster_whisper import WhisperModel
 
-                self._model = WhisperModel(model_name, device=device, compute_type=compute_type)
+                self._model = WhisperModel(model_name, device=device, compute_type=compute_type, local_files_only=True)
                 self._loaded_model_name = model_name
                 self._loaded_device = device
                 self._loaded_compute_type = compute_type
@@ -232,6 +249,8 @@ class LocalFasterWhisperProvider:
             except Exception as exc:
                 last_error = exc
                 self._model = None
+                if device == "cuda":
+                    self._fallback_reason = "GPU 不可用，已回退 CPU。"
 
         raise STTError(f"Unable to load faster-whisper model '{model_name}': {last_error}")
 
@@ -239,7 +258,7 @@ class LocalFasterWhisperProvider:
         if self._dll_dirs_added:
             return
 
-        site_packages = Path(__file__).resolve().parents[3] / ".venv" / "Lib" / "site-packages"
+        site_packages = Path(getattr(sys, "_MEIPASS", Path(sys.prefix) / "Lib" / "site-packages"))
         dll_dirs = [
             site_packages / "nvidia" / "cudnn" / "bin",
             site_packages / "nvidia" / "cublas" / "bin",
@@ -248,7 +267,7 @@ class LocalFasterWhisperProvider:
         existing_dirs = [path for path in dll_dirs if path.exists()]
         for path in existing_dirs:
             if hasattr(os, "add_dll_directory"):
-                os.add_dll_directory(str(path))
+                self._dll_handles.append(os.add_dll_directory(str(path)))
 
         if existing_dirs:
             os.environ["PATH"] = ";".join([*(str(path) for path in existing_dirs), os.environ.get("PATH", "")])

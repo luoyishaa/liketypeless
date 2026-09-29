@@ -1,12 +1,19 @@
 appId: com.liketypeless.desktop
 productName: liketypeless
-electronVersion: 39.2.4
 directories:
   output: release
 files:
   - out/**
   - package.json
+extraResources:
+  - from: ../../dist/third-party-licenses
+    to: third-party-licenses
+  - from: ../../dist/liketypeless-api
+    to: backend
+    filter:
+      - "**/*"
 win:
+  icon: resources/icon.ico
   target:
     - target: nsis
       arch:
@@ -17,4 +24,5 @@ nsis:
   perMachine: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  deleteAppDataOnUninstall: false
 artifactName: ${productName}-Setup-${version}.${ext}

@@ -2,392 +2,396 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  dialog,
   globalShortcut,
   ipcMain,
   Menu,
   nativeImage,
   Notification,
   screen,
-  Tray
+  Tray,
 } from "electron";
-import { join } from "node:path";
-import {
-  DEFAULT_API_BASE_URL,
-  type AudioDevice,
-  type HealthResponse,
-  type RecordingStatus,
-  type StopRecordingResponse,
-  type StructureResponse,
-  type TranslationResponse,
-  type TranscribeResponse,
-  type VoiceFinishResponse,
-  type VoicePreviewResponse,
-  type VoiceTranscribeResponse
+import { join, resolve } from "node:path";
+import type {
+  DesktopState,
+  HealthResponse,
+  ModelStatus,
+  RecentResult,
+  VoiceFinishResponse,
 } from "@liketypeless/shared";
-import { copySelectionFromWindow, getForegroundWindowHandle, pasteIntoWindow } from "./windows-input";
-import { loadDesktopSettings, saveDesktopSettings, type DesktopSettings } from "./settings-store";
+import {
+  beginClipboard,
+  focusWindow,
+  getForegroundWindowHandle,
+  pasteIntoWindow,
+  restoreClipboard,
+} from "./windows-input";
+import { BackendProcess } from "./backend-process";
+import { deliverText } from "./input-delivery";
+import {
+  loadDesktopSettings,
+  saveDesktopSettings,
+  type DesktopSettings,
+} from "./settings-store";
 
-const API_BASE_URL = process.env.LIKETYPELESS_API_BASE_URL ?? DEFAULT_API_BASE_URL;
-const RENDERER_DEV_URL = process.env.ELECTRON_RENDERER_URL ?? "http://localhost:5173";
 let mainWindow: BrowserWindow | null = null;
-let statusOverlay: BrowserWindow | null = null;
+let overlay: BrowserWindow | null = null;
 let tray: Tray | null = null;
-let isQuitting = false;
-let hotkeyWorkflowRunning = false;
-let targetWindowHandle: string | null = null;
-let statusOverlayTimer: ReturnType<typeof setTimeout> | null = null;
-let translationWorkflowRunning = false;
-let desktopSettings: DesktopSettings = { globalHotkey: "Shift+Space", inputDeviceId: null, outputMode: "zh" };
+let backend: BackendProcess;
+let settings: DesktopSettings;
+let quitting = false;
+let busy = false;
+let recording = false;
+let target: string | null = null;
+let overlayTimer: ReturnType<typeof setTimeout> | null = null;
+let state: DesktopState = { phase: "starting", message: "正在启动本机服务…" };
 
-type StatusOverlayState = "recording" | "processing" | "success" | "error";
-
-const STATUS_OVERLAY_COPY: Record<StatusOverlayState, { title: string; detail: string }> = {
-  recording: { title: "正在录音", detail: "再次按快捷键结束" },
-  processing: { title: "正在处理", detail: "转写并整理语音内容" },
-  success: { title: "已输入", detail: "文本已粘贴到原输入框" },
-  error: { title: "处理失败", detail: "请检查录音、模型或服务状态" }
-};
-
-function createStatusOverlayHtml(state: StatusOverlayState): string {
-  const copy = STATUS_OVERLAY_COPY[state];
-  const isProcessing = state === "processing";
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><style>
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif; background: transparent; color: #fff; }
-    .card { width: 100%; height: 100%; display: flex; align-items: center; gap: 12px; padding: 16px 18px; border: 1px solid rgba(255,255,255,.16); border-radius: 16px; background: rgba(20, 25, 31, .93); box-shadow: 0 12px 36px rgba(0,0,0,.28); }
-    .indicator { width: 13px; height: 13px; flex: 0 0 auto; border-radius: 50%; background: ${state === "error" ? "#fb7185" : state === "success" ? "#4ade80" : "#f87171"}; box-shadow: 0 0 0 6px ${state === "error" ? "rgba(251,113,133,.15)" : state === "success" ? "rgba(74,222,128,.15)" : "rgba(248,113,113,.15)"}; }
-    .processing { background: transparent; border: 3px solid rgba(255,255,255,.24); border-top-color: #93c5fd; box-shadow: none; animation: spin 900ms linear infinite; }
-    .text { min-width: 0; }
-    .title { font-size: 15px; line-height: 1.35; font-weight: 700; }
-    .detail { margin-top: 3px; color: rgba(255,255,255,.7); font-size: 12px; line-height: 1.35; white-space: nowrap; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-  </style></head><body><div class="card"><span class="indicator${isProcessing ? " processing" : ""}"></span><div class="text"><div class="title">${copy.title}</div><div class="detail">${copy.detail}</div></div></div></body></html>`;
+const legacyDataPath = app.getPath("userData");
+app.setName("liketypeless");
+app.setPath("userData", join(app.getPath("appData"), "liketypeless"));
+if (!app.isPackaged && process.env.LIKETYPELESS_TEST_DATA_DIR) {
+  app.setPath("userData", process.env.LIKETYPELESS_TEST_DATA_DIR);
 }
 
-function hideStatusOverlay(): void {
-  if (statusOverlayTimer) {
-    clearTimeout(statusOverlayTimer);
-    statusOverlayTimer = null;
-  }
-  statusOverlay?.hide();
-}
-
-function showStatusOverlay(state: StatusOverlayState, hideAfterMs?: number): void {
-  if (statusOverlayTimer) {
-    clearTimeout(statusOverlayTimer);
-    statusOverlayTimer = null;
-  }
-
-  if (!statusOverlay || statusOverlay.isDestroyed()) {
-    const { workArea } = screen.getPrimaryDisplay();
-    statusOverlay = new BrowserWindow({
-      width: 336,
-      height: 86,
-      x: workArea.x + workArea.width - 356,
-      y: workArea.y + workArea.height - 116,
-      frame: false,
-      transparent: true,
-      resizable: false,
-      focusable: false,
-      skipTaskbar: true,
-      alwaysOnTop: true,
-      hasShadow: false,
-      webPreferences: { contextIsolation: true, nodeIntegration: false }
-    });
-    statusOverlay.setIgnoreMouseEvents(true);
-    statusOverlay.on("closed", () => {
-      statusOverlay = null;
-    });
-  }
-
-  statusOverlay.setAlwaysOnTop(true, "screen-saver");
-  void statusOverlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(createStatusOverlayHtml(state))}`);
-  statusOverlay.showInactive();
-
-  if (hideAfterMs) {
-    statusOverlayTimer = setTimeout(hideStatusOverlay, hideAfterMs);
-  }
-}
-
-function createWindow(): void {
-  mainWindow = new BrowserWindow({
-    width: 980,
-    height: 680,
-    minWidth: 760,
-    minHeight: 540,
-    title: "liketypeless",
-    backgroundColor: "#f7f7f4",
-    webPreferences: {
-      preload: join(__dirname, "../preload/index.js"),
-      contextIsolation: true,
-      nodeIntegration: false
+function publish(next: DesktopState) {
+  state = next;
+  mainWindow?.webContents.send("state:changed", state);
+  if (overlayTimer) clearTimeout(overlayTimer);
+  if (
+    [
+      "recording",
+      "processing",
+      "ready-to-copy",
+      "paste-requested",
+      "error",
+    ].includes(next.phase)
+  ) {
+    if (!overlay || overlay.isDestroyed()) {
+      const area = screen.getPrimaryDisplay().workArea;
+      overlay = new BrowserWindow({
+        width: 350,
+        height: 88,
+        x: area.x + area.width - 370,
+        y: area.y + area.height - 110,
+        frame: false,
+        transparent: true,
+        focusable: false,
+        skipTaskbar: true,
+        alwaysOnTop: true,
+        resizable: false,
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        },
+      });
+      overlay.setIgnoreMouseEvents(true);
     }
-  });
-
-  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
-    console.error(`Renderer load failed: ${errorCode} ${errorDescription} ${validatedURL}`);
-  });
-
-  mainWindow.webContents.on("console-message", (_event, level, message) => {
-    console.log(`Renderer console [${level}]: ${message}`);
-  });
-
-  mainWindow.on("close", (event) => {
-    if (isQuitting) {
-      return;
-    }
-
-    event.preventDefault();
-    mainWindow?.hide();
-  });
-
-  if (process.env.ELECTRON_RENDERER_URL || !app.isPackaged) {
-    void mainWindow.loadURL(RENDERER_DEV_URL);
-  } else {
-    void mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
-  }
+    const titles: Record<string, string> = {
+      recording: "正在聆听",
+      processing: "正在识别",
+      "ready-to-copy": "文字已保留",
+      "paste-requested": "已发送粘贴",
+      error: "需要处理",
+    };
+    const detail =
+      next.phase === "recording"
+        ? "再次按快捷键结束"
+        : next.phase === "processing"
+          ? "文字会先保存，再尝试输入"
+          : "打开主窗口查看结果或处理提示";
+    const html =
+      '<!doctype html><meta charset="UTF-8"><style>body{margin:0;padding:17px 22px;background:#193c38;color:white;border-radius:16px;font:15px "Microsoft YaHei UI";box-sizing:border-box}b{display:block;margin-bottom:5px}small{color:#c3d7d1}</style><b>' +
+      titles[next.phase] +
+      "</b><small>" +
+      detail +
+      "</small>";
+    void overlay.loadURL(
+      "data:text/html;charset=utf-8," + encodeURIComponent(html),
+    );
+    overlay.showInactive();
+    if (!["recording", "processing"].includes(next.phase))
+      overlayTimer = setTimeout(() => overlay?.hide(), 4000);
+  } else overlay?.hide();
 }
 
-function showMainWindow(): void {
+function showWindow() {
   mainWindow?.show();
   mainWindow?.focus();
 }
 
-function createTray(): void {
-  tray?.destroy();
-  const icon = nativeImage.createEmpty();
-  tray = new Tray(icon);
-  tray.setToolTip("liketypeless");
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1060,
+    height: 780,
+    minWidth: 840,
+    minHeight: 640,
+    title: "liketypeless",
+    show: !process.env.LIKETYPELESS_TEST_DATA_DIR,
+    backgroundColor: "#f4f6f2",
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: join(__dirname, "../preload/index.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.on("will-navigate", (event) => event.preventDefault());
+  mainWindow.on("close", (event) => {
+    if (!quitting) {
+      event.preventDefault();
+      mainWindow?.hide();
+    }
+  });
+  if (process.env.ELECTRON_RENDERER_URL)
+    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
+  else void mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
+}
+
+function trayIcon() {
+  const bytes = Buffer.alloc(32 * 32 * 4);
+  for (let y = 0; y < 32; y++)
+    for (let x = 0; x < 32; x++) {
+      const i = (y * 32 + x) * 4;
+      const mic =
+        (x >= 12 && x <= 19 && y >= 5 && y <= 19) ||
+        (y >= 22 && y <= 24 && x >= 8 && x <= 23) ||
+        (x >= 15 && x <= 17 && y >= 19 && y <= 28);
+      const inside = (x - 15.5) ** 2 + (y - 15.5) ** 2 <= 245;
+      bytes[i] = mic ? 245 : 36;
+      bytes[i + 1] = mic ? 249 : 94;
+      bytes[i + 2] = mic ? 241 : 80;
+      bytes[i + 3] = inside ? 255 : 0;
+    }
+  return nativeImage.createFromBitmap(bytes, { width: 32, height: 32 });
+}
+
+function updateTray() {
+  if (!tray) {
+    tray = new Tray(trayIcon());
+    tray.on("double-click", showWindow);
+  }
+  tray.setToolTip("liketypeless · 中文语音输入");
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      {
-        label: "Show liketypeless",
-        click: showMainWindow
-      },
-      {
-        label: `Hotkey: ${desktopSettings.globalHotkey}`,
-        enabled: false
-      },
+      { label: "打开主窗口", click: showWindow },
+      { label: "录音快捷键：" + settings.globalHotkey, enabled: false },
       { type: "separator" },
-      {
-        label: "Quit",
-        click: () => {
-          isQuitting = true;
-          app.quit();
-        }
-      }
-    ])
+      { label: "退出应用", click: () => app.quit() },
+    ]),
   );
-  tray.on("double-click", showMainWindow);
 }
 
-async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`);
-  if (!response.ok) {
-    throw new Error(`${path} failed with ${response.status}: ${await response.text()}`);
-  }
-  return (await response.json()) as T;
-}
-
-async function postJson<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: body === undefined ? undefined : JSON.stringify(body)
-  });
-
-  if (!response.ok) {
-    throw new Error(`${path} failed with ${response.status}: ${await response.text()}`);
-  }
-
-  return (await response.json()) as T;
-}
-
-ipcMain.handle("api:health", async (): Promise<HealthResponse> => {
-  return getJson<HealthResponse>("/health");
-});
-
-ipcMain.handle("api:audio-devices", async (): Promise<AudioDevice[]> => {
-  return getJson<AudioDevice[]>("/audio/devices");
-});
-
-ipcMain.handle("api:recording-status", async (): Promise<RecordingStatus> => {
-  return getJson<RecordingStatus>("/audio/recording/status");
-});
-
-ipcMain.handle("api:start-recording", async (): Promise<RecordingStatus> => {
-  return postJson<RecordingStatus>("/audio/recording/start", { deviceId: desktopSettings.inputDeviceId });
-});
-
-ipcMain.handle("settings:get", (): DesktopSettings => desktopSettings);
-
-ipcMain.handle("settings:update", async (_event, next: DesktopSettings): Promise<DesktopSettings> => {
-  const requestedHotkey = next.globalHotkey.trim();
-  if (!requestedHotkey) {
-    throw new Error("快捷键不能为空");
-  }
-
-  if (requestedHotkey !== desktopSettings.globalHotkey) {
-    globalShortcut.unregister(desktopSettings.globalHotkey);
-    if (!globalShortcut.register(requestedHotkey, () => void handleGlobalHotkey())) {
-      globalShortcut.register(desktopSettings.globalHotkey, () => void handleGlobalHotkey());
-      throw new Error(`无法注册快捷键：${requestedHotkey}`);
-    }
-  }
-
-  desktopSettings = await saveDesktopSettings({
-    globalHotkey: requestedHotkey,
-    inputDeviceId: Number.isInteger(next.inputDeviceId) ? next.inputDeviceId : null,
-    outputMode: next.outputMode === "zh-to-en" ? "zh-to-en" : "zh"
-  });
-  createTray();
-  return desktopSettings;
-});
-
-ipcMain.handle("api:stop-recording", async (): Promise<StopRecordingResponse> => {
-  return postJson<StopRecordingResponse>("/audio/recording/stop");
-});
-
-ipcMain.handle("api:transcribe", async (_event, filePath: string, provider?: string): Promise<TranscribeResponse> => {
-  return postJson<TranscribeResponse>("/stt/transcribe", { filePath, provider });
-});
-
-ipcMain.handle("api:transcribe-voice-recording", async (): Promise<VoiceTranscribeResponse> => {
-  return postJson<VoiceTranscribeResponse>("/voice/recording/transcribe");
-});
-
-ipcMain.handle("api:preview-voice-recording", async (): Promise<VoicePreviewResponse> => {
-  return postJson<VoicePreviewResponse>("/voice/recording/preview");
-});
-
-ipcMain.handle("api:finish-voice-recording", async (): Promise<VoiceFinishResponse> => {
-  return postJson<VoiceFinishResponse>("/voice/recording/finish", { outputMode: desktopSettings.outputMode });
-});
-
-ipcMain.handle("api:structure", async (_event, text: string): Promise<StructureResponse> => {
-  return postJson<StructureResponse>("/llm/structure", { text });
-});
-
-async function handleSelectionTranslation(): Promise<void> {
-  if (translationWorkflowRunning) return;
-  translationWorkflowRunning = true;
+async function toggleRecording(fromHotkey: boolean) {
+  if (busy) return state;
+  busy = true;
   try {
-    const target = await getForegroundWindowHandle();
-    const previousClipboardText = clipboard.readText();
-    await copySelectionFromWindow(target);
-    await new Promise((resolve) => setTimeout(resolve, 120));
-    const sourceText = clipboard.readText().trim();
-    if (!sourceText || sourceText === previousClipboardText) throw new Error("未检测到可翻译的已选文本");
-    showStatusOverlay("processing");
-    const translation = await postJson<TranslationResponse>("/llm/translate", { text: sourceText });
-    clipboard.writeText(translation.translatedText);
-    try { await pasteIntoWindow(target); } finally { setTimeout(() => clipboard.writeText(previousClipboardText), 250); }
-    showStatusOverlay("success", 1400);
-    notify("liketypeless", "划线翻译已粘贴");
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    showStatusOverlay("error", 4000);
-    notify("liketypeless 翻译失败", message);
-  } finally { translationWorkflowRunning = false; }
-}
-
-function notify(title: string, body: string): void {
-  if (Notification.isSupported()) {
-    new Notification({ title, body }).show();
-  }
-}
-
-async function handleGlobalHotkey(): Promise<void> {
-  if (hotkeyWorkflowRunning) {
-    return;
-  }
-
-  hotkeyWorkflowRunning = true;
-
-  try {
-    if (!targetWindowHandle) {
-      targetWindowHandle = await getForegroundWindowHandle();
-      await postJson<RecordingStatus>("/audio/recording/start", { deviceId: desktopSettings.inputDeviceId });
-      showStatusOverlay("recording");
-      notify("liketypeless", `开始录音，再按 ${desktopSettings.globalHotkey} 结束`);
-      return;
-    }
-
-    showStatusOverlay("processing");
-    const result = await postJson<VoiceFinishResponse>("/voice/recording/finish", { outputMode: desktopSettings.outputMode });
-    const text = result.structuredText.trim() || result.transcript.trim();
-    if (!text) {
-      throw new Error("语音识别没有返回文本");
-    }
-
-    const previousClipboardText = clipboard.readText();
-    clipboard.writeText(text);
-
-    try {
-      await pasteIntoWindow(targetWindowHandle);
-    } finally {
-      setTimeout(() => clipboard.writeText(previousClipboardText), 250);
-    }
-
-    notify("liketypeless", `已输入，耗时 ${result.totalElapsedMs} ms`);
-    showStatusOverlay("success", 1400);
-    targetWindowHandle = null;
-  } catch (error) {
-    targetWindowHandle = null;
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`Global hotkey workflow failed: ${message}`);
-    showStatusOverlay("error", 4000);
-    notify("liketypeless 失败", message);
-  } finally {
-    hotkeyWorkflowRunning = false;
-  }
-}
-
-function registerGlobalHotkey(): void {
-  const registered = globalShortcut.register(desktopSettings.globalHotkey, () => {
-    void handleGlobalHotkey();
-  });
-
-  if (!registered) {
-    console.error(`Unable to register global hotkey: ${desktopSettings.globalHotkey}`);
-    notify("liketypeless", `快捷键注册失败：${desktopSettings.globalHotkey}`);
-  } else {
-    console.log(`Global hotkey registered: ${desktopSettings.globalHotkey}`);
-  }
-}
-
-function registerTranslationHotkey(): void {
-  const hotkey = "Ctrl+Shift+T";
-  if (!globalShortcut.register(hotkey, () => void handleSelectionTranslation())) {
-    console.error(`Unable to register translation hotkey: ${hotkey}`);
-  }
-}
-
-app.whenReady().then(async () => {
-  desktopSettings = await loadDesktopSettings();
-  createWindow();
-  createTray();
-  registerGlobalHotkey();
-  registerTranslationHotkey();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+    if (!recording) {
+      target = fromHotkey ? await getForegroundWindowHandle() : null;
+      if (target?.split(":")[1] === String(process.pid)) target = null;
+      await backend.request("/audio/recording/start", {
+        deviceId: settings.inputDeviceId,
+      });
+      recording = true;
+      publish({
+        phase: "recording",
+        message: "正在录音，再按一次快捷键结束。",
+      });
     } else {
-      showMainWindow();
+      const started = performance.now();
+      publish({ phase: "processing", message: "正在识别并保存结果…" });
+      const result = await backend.request<VoiceFinishResponse>(
+        "/voice/recording/finish",
+        { outputMode: "zh", cleanupMode: settings.cleanupMode },
+      );
+      recording = false;
+      const text = result.structuredText.trim() || result.transcript.trim();
+      if (!text)
+        throw new Error("没有识别到文字。请检查麦克风，再说一句完整的话。");
+      const delivery = await deliverText(text, target, {
+        focus: focusWindow,
+        begin: beginClipboard,
+        paste: pasteIntoWindow,
+        restore: restoreClipboard,
+      });
+      publish({
+        phase: delivery.status,
+        message: [delivery.reason, result.degradationReason]
+          .filter(Boolean)
+          .join(" "),
+        elapsedMs: Math.round(performance.now() - started),
+      });
+      if (delivery.status === "ready-to-copy") showWindow();
+    }
+  } catch (error) {
+    const status = await backend
+      .request<{ isRecording: boolean }>("/audio/recording/status")
+      .catch(() => null);
+    recording = status?.isRecording ?? false;
+    publish({
+      phase: "error",
+      message: error instanceof Error ? error.message : String(error),
+    });
+    if (Notification.isSupported())
+      new Notification({ title: "liketypeless", body: state.message }).show();
+    showWindow();
+  } finally {
+    if (!recording) target = null;
+    busy = false;
+  }
+  return state;
+}
+
+function registerIpc() {
+  function handle(channel: string, action: (...args: any[]) => unknown) {
+    ipcMain.handle(channel, (event, ...args) => {
+      if (event.sender !== mainWindow?.webContents)
+        throw new Error("无效的桌面会话");
+      return action(...args);
+    });
+  }
+  handle("api:health", () => backend.request<HealthResponse>("/health"));
+  handle("api:audio-devices", () => backend.request("/audio/devices"));
+  handle("desktop:state", () => state);
+  handle("desktop:toggle", () => toggleRecording(false));
+  handle("desktop:restart", async () => {
+    if (busy || recording) throw new Error("请先结束录音和处理。");
+    busy = true;
+    try {
+      await backend.restart();
+      publish({ phase: "ready", message: "本机服务已就绪。" });
+    } finally {
+      busy = false;
     }
   });
-});
+  handle("settings:get", () => settings);
+  handle("settings:update", async (next: DesktopSettings) => {
+    if (busy || recording) throw new Error("请先结束录音，再修改设置。");
+    const hotkey =
+      typeof next.globalHotkey === "string" ? next.globalHotkey.trim() : "";
+    if (!hotkey || hotkey.length > 100) throw new Error("请输入有效快捷键。");
+    const previous = settings.globalHotkey;
+    if (
+      hotkey !== previous &&
+      !globalShortcut.register(hotkey, () => void toggleRecording(true))
+    )
+      throw new Error("快捷键被占用或无效，请换一组组合键。");
+    try {
+      settings = await saveDesktopSettings({ ...next, globalHotkey: hotkey });
+      if (previous !== hotkey) globalShortcut.unregister(previous);
+    } catch (error) {
+      if (previous !== hotkey) globalShortcut.unregister(hotkey);
+      throw error;
+    }
+    updateTray();
+    return settings;
+  });
+  handle("models:status", () => backend.request<ModelStatus>("/models/status"));
+  handle("models:prepare", (endpoint: string) =>
+    backend.request("/models/prepare", { endpoint }),
+  );
+  handle("models:import", async () => {
+    const selection = await dialog.showOpenDialog(mainWindow!, {
+      title: "选择 faster-whisper-small 模型文件夹",
+      properties: ["openDirectory"],
+    });
+    if (selection.canceled) return null;
+    return backend.request("/models/prepare", {
+      sourcePath: selection.filePaths[0],
+    });
+  });
+  handle("results:list", () => backend.request<RecentResult[]>("/results"));
+  handle("results:clear", () => backend.request("/results/clear", {}));
+  handle("results:copy", async (id: string) => {
+    const result = (await backend.request<RecentResult[]>("/results")).find(
+      (item) => item.id === id,
+    );
+    if (!result || !(result.text || result.transcript))
+      throw new Error("这条记录没有可复制的文字。");
+    clipboard.writeText(result.text || result.transcript);
+  });
+  handle("results:retry", async (id: string) => {
+    if (busy || recording || !/^[a-f0-9]{32}$/.test(id))
+      throw new Error("当前无法重试，请先结束录音。");
+    busy = true;
+    try {
+      publish({ phase: "processing", message: "正在重试识别…" });
+      await backend.request("/results/" + id + "/retry", {
+        outputMode: "zh",
+        cleanupMode: settings.cleanupMode,
+      });
+      publish({
+        phase: "ready-to-copy",
+        message: "重试完成，文字已保留，请手动复制。",
+      });
+    } catch (error) {
+      publish({
+        phase: "error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    } finally {
+      busy = false;
+    }
+  });
+}
 
-app.on("will-quit", () => {
-  hideStatusOverlay();
+if (!app.requestSingleInstanceLock()) app.quit();
+else {
+  app.on("second-instance", showWindow);
+  app.whenReady().then(async () => {
+    settings = await loadDesktopSettings(
+      process.env.LIKETYPELESS_TEST_DATA_DIR ? undefined : legacyDataPath,
+    );
+    const root = resolve(__dirname, "../../../..");
+    backend = app.isPackaged
+      ? new BackendProcess(
+          join(process.resourcesPath, "backend", "liketypeless-api.exe"),
+          [],
+          app.getPath("userData"),
+        )
+      : new BackendProcess(
+          join(root, ".venv-release", "Scripts", "python.exe"),
+          [join(root, "apps", "local-api", "scripts", "serve_product.py")],
+          app.getPath("userData"),
+        );
+    registerIpc();
+    createWindow();
+    updateTray();
+    const registered = globalShortcut.register(
+      settings.globalHotkey,
+      () => void toggleRecording(true),
+    );
+    try {
+      await backend.start();
+      publish(
+        registered
+          ? {
+              phase: "ready",
+              message: "本机服务已就绪，请完成模型与麦克风准备。",
+            }
+          : { phase: "error", message: "录音快捷键注册失败，请到设置中更换。" },
+      );
+    } catch (error) {
+      publish({
+        phase: "error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+    app.on("activate", showWindow);
+  });
+}
+app.on("before-quit", (event) => {
+  if (quitting) return;
+  event.preventDefault();
+  quitting = true;
   globalShortcut.unregisterAll();
+  overlay?.destroy();
+  tray?.destroy();
+  void (backend?.stop() ?? Promise.resolve()).finally(() => app.quit());
 });
-
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin" && isQuitting) {
-    app.quit();
-  }
+  /* Closing the main window intentionally leaves the tray running. */
 });

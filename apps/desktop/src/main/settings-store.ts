@@ -1,17 +1,21 @@
 import { app } from "electron";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 export type DesktopSettings = {
   globalHotkey: string;
   inputDeviceId: number | null;
-  outputMode: "zh" | "zh-to-en";
+  outputMode: "zh";
+  cleanupMode: "basic" | "enhanced";
+  onboardingComplete: boolean;
 };
 
 const DEFAULT_SETTINGS: DesktopSettings = {
   globalHotkey: process.env.LIKETYPELESS_GLOBAL_HOTKEY ?? "Shift+Space",
   inputDeviceId: null,
-  outputMode: "zh"
+  outputMode: "zh",
+  cleanupMode: "basic",
+  onboardingComplete: false,
 };
 
 function settingsPath(): string {
@@ -20,22 +24,53 @@ function settingsPath(): string {
 
 function normalize(candidate: Partial<DesktopSettings>): DesktopSettings {
   return {
-    globalHotkey: candidate.globalHotkey?.trim() || DEFAULT_SETTINGS.globalHotkey,
-    inputDeviceId: Number.isInteger(candidate.inputDeviceId) ? candidate.inputDeviceId ?? null : null,
-    outputMode: candidate.outputMode === "zh-to-en" ? "zh-to-en" : "zh"
+    globalHotkey:
+      candidate.globalHotkey?.trim() || DEFAULT_SETTINGS.globalHotkey,
+    inputDeviceId: Number.isInteger(candidate.inputDeviceId)
+      ? (candidate.inputDeviceId ?? null)
+      : null,
+    outputMode: "zh",
+    cleanupMode: candidate.cleanupMode === "enhanced" ? "enhanced" : "basic",
+    onboardingComplete: candidate.onboardingComplete === true,
   };
 }
 
-export async function loadDesktopSettings(): Promise<DesktopSettings> {
+export async function loadDesktopSettings(
+  legacyDataPath?: string,
+): Promise<DesktopSettings> {
   try {
-    return normalize(JSON.parse(await readFile(settingsPath(), "utf-8")) as Partial<DesktopSettings>);
+    return normalize(
+      JSON.parse(
+        await readFile(settingsPath(), "utf-8"),
+      ) as Partial<DesktopSettings>,
+    );
   } catch {
+    if (legacyDataPath && legacyDataPath !== app.getPath("userData")) {
+      try {
+        const previous = normalize(
+          JSON.parse(
+            await readFile(join(legacyDataPath, "settings.json"), "utf-8"),
+          ),
+        );
+        return await saveDesktopSettings(previous);
+      } catch {
+        /* No legacy settings to migrate. */
+      }
+    }
     return { ...DEFAULT_SETTINGS };
   }
 }
 
-export async function saveDesktopSettings(settings: DesktopSettings): Promise<DesktopSettings> {
+export async function saveDesktopSettings(
+  settings: DesktopSettings,
+): Promise<DesktopSettings> {
   const normalized = normalize(settings);
-  await writeFile(settingsPath(), `${JSON.stringify(normalized, null, 2)}\n`, "utf-8");
+  await mkdir(app.getPath("userData"), { recursive: true });
+  await writeFile(
+    settingsPath() + ".tmp",
+    `${JSON.stringify(normalized, null, 2)}\n`,
+    "utf-8",
+  );
+  await rename(settingsPath() + ".tmp", settingsPath());
   return normalized;
 }

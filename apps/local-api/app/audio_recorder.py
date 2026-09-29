@@ -62,9 +62,16 @@ class AudioRecorder:
 
             self._chunks = []
             self._started_at = time.time()
-            stream, sample_rate = self._create_stream(device_id)
-            stream.start()
-            self._stream = stream
+            stream = None
+            try:
+                stream, sample_rate = self._create_stream(device_id)
+                stream.start()
+                self._stream = stream
+            except Exception:
+                self._started_at = None
+                if stream is not None:
+                    stream.close()
+                raise
             self.active_sample_rate = sample_rate
             return {
                 "isRecording": True,
@@ -85,8 +92,16 @@ class AudioRecorder:
             self._chunks = []
             self._started_at = None
 
-        stream.stop()
-        stream.close()
+        try:
+            stream.stop()
+        except Exception:
+            # A disconnected device can still have captured useful chunks.
+            pass
+        finally:
+            try:
+                stream.close()
+            except Exception:
+                pass
 
         if not chunks:
             raise AudioRecorderError("Recording stopped without captured audio.")

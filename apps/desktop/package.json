@@ -1,6 +1,6 @@
 {
   "name": "@liketypeless/desktop",
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
   "description": "Local-first Windows voice input assistant.",
   "author": "Luo Yisha",
   "private": true,
@@ -15,16 +15,16 @@
   },
   "dependencies": {
     "@liketypeless/shared": "0.1.0",
-    "@vitejs/plugin-react": "^5.1.1",
-    "electron-vite": "^4.0.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.1",
+    "electron-vite": "^4.0.0",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "electron": "^39.2.4",
+    "electron": "44.4.5",
     "typescript": "^5.9.3",
     "vite": "^7.2.4"
   }

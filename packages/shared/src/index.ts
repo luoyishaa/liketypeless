@@ -20,8 +20,14 @@ export type TranslationResponse = {
 
 export type HealthResponse = {
   status: "ok";
-  ollamaReachable: boolean;
+  ollamaReachable: boolean | null;
   defaultModel: string;
+  modelReady: boolean;
+  runtime: {
+    device: string | null;
+    computeType: string | null;
+    fallbackReason: string | null;
+  };
 };
 
 export type AudioDevice = {
@@ -66,6 +72,9 @@ export type TranscribeResponse = {
 };
 
 export type VoiceFinishResponse = {
+  resultId: string;
+  degraded: boolean;
+  degradationReason: string | null;
   audioFilePath: string;
   durationSeconds: number;
   audioRms: number;
@@ -79,6 +88,36 @@ export type VoiceFinishResponse = {
   sttElapsedMs: number;
   llmElapsedMs: number;
   totalElapsedMs: number;
+};
+
+export type ModelStatus = {
+  state: "missing" | "downloading" | "verifying" | "ready" | "error";
+  downloadedBytes: number;
+  totalBytes: number;
+  error: string | null;
+  revision: string;
+};
+
+export type RecentResult = {
+  id: string;
+  created: number;
+  transcript: string;
+  text: string;
+  status: "processing" | "recognized" | "ready" | "empty" | "failed";
+  error: string | null;
+};
+
+export type DesktopState = {
+  phase:
+    | "starting"
+    | "ready"
+    | "recording"
+    | "processing"
+    | "ready-to-copy"
+    | "paste-requested"
+    | "error";
+  message: string;
+  elapsedMs?: number;
 };
 
 export type VoiceTranscribeResponse = {

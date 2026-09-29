@@ -1,337 +1,79 @@
 # liketypeless
 
-面向 Windows 的本地优先语音输入助手：按快捷键录音，停止后将语音转成文字，做保守的结构化整理，并自动粘贴到当前光标所在的输入框。
+Windows 11 x64 本地中文语音输入工具。按快捷键说话，结束后识别、简单整理，先保存结果，再尝试输入到原窗口。
 
-项目目标是做一个可持续共同维护的本地化 Typeless 类工具，优先保证隐私、响应速度和原意保留。
+当前版本：**v0.1.0-rc.2（Windows x64 发布候选版）**。构建信息、已完成的测试和待验证项见 [版本技术状态](docs/v0.1-release-status.md)与 [验证矩阵](docs/v0.1-acceptance.md)。
 
-## 当前能力
+## 给使用者
 
-- Windows Electron 桌面应用。
-- 全局快捷键 `Shift+Space`：
-  - 第一次按下：开始录音。
-  - 第二次按下：停止录音、转写、结构化并自动粘贴。
-- 自动记住原前台窗口，完成处理后恢复焦点并发送 `Ctrl+V`。
-- 自动恢复之前的剪贴板文本。
-- 本地 `faster-whisper` 语音识别，默认使用 `small` 模型。
-- 自动检测 CUDA；GPU 可用时使用 CUDA/float16，否则回退 CPU/int8。
-- 可选 SenseVoice/FunASR provider，用于对比中文识别质量。
-- Ollama 本地 LLM 结构化，默认使用 `qwen3:8b`，关闭思考模式。
-- 保守结构化：
-  - 去掉部分“嗯、啊、呃、额”等填充词。
-  - 保留原意和原有措辞。
-  - 按“第一、第二”等结构分条。
-  - 修正明显错字。
-  - 补充中文句末标点。
-  - LLM 输出不安全时回退到规则结果。
-- Electron 窗口、托盘和手动测试界面。
+1. 安装候选安装包，打开应用。
+2. 首次使用下载 Whisper small 模型（约 486 MB），或者导入同版本已有模型；应用会校验文件。
+3. 选择麦克风，先在首页试录一句话。
+4. 在记事本等输入框中按 `Shift+Space` 开始，再按一次结束。若与输入法冲突，到设置改为 `Ctrl+Shift+Space`。
+5. 检查输入内容；最近结果保留文字副本，可以手动复制。
 
-## 工作流
+安装包包含 Python 后台和运行依赖，不要求使用者安装 Python、Node、CUDA 开发工具或 Ollama。GPU 依赖增加了安装体积；没有可用 NVIDIA GPU 时使用 CPU，处理速度会不同。模型是首次单独准备，不静默下载大语言模型。
 
-```text
-Shift+Space
-    |
-    v
-记住当前前台窗口 -> Python 开始录音
-    |
-再次 Shift+Space
-    |
-    v
-停止录音 -> faster-whisper 转写 -> Ollama 结构化
-    |
-    v
-恢复原窗口 -> 粘贴文本 -> 恢复剪贴板
-```
+基础模式在模型就绪后可离线使用。可选智能整理需要自行准备本机 Ollama 和 `qwen3:8b`；不开启时不会等待 Ollama。增强失败或没有通过整理检查时保留基础结果，不开启推理模式。
 
-当前版本支持停止后批量识别，也支持主窗口中的实时转写预览。录音期间会在屏幕右下角显示一个不抢焦点、可穿透鼠标的悬浮状态窗；停止后它会切换为处理中，完成或失败后自动隐藏。预览每约 3 秒读取一次当前录音快照，不会停止或清空录音；最终转写仍以完整原始录音为准。
+## 能做与不能承诺的事
 
-## 技术架构
+- 快捷键录音、录音状态浮窗、麦克风与快捷键设置、长录音分块。
+- 默认本地识别和规则整理：去掉部分口头语、补句末标点，保留简单编号结构。
+- 窗口身份和焦点确认后才尝试粘贴；图片等非文本剪贴板无法安全保留时转为手动复制。
+- 新的用户复制操作优先于旧剪贴板恢复；“已发送粘贴”不是确认目标应用已接收。
+- 服务由桌面自动启动和停止，只监听本机，并使用每次启动的会话凭据。
+- 失败识别可重试，文字先保存再输入；模型下载失败可以重试，支持校验后导入。
+- 不保证管理员窗口、密码框、远程桌面或所有编辑器都能自动输入。
+- 短句、人名、口音、远场和重叠说话仍是弱项。重要日期、数字、姓名必须核对。
+- 翻译、会议纪要、说话人区分和跨平台不作为本版承诺。实验识别接口保留给开发评测，不在默认界面展示。
+- 实时预览暂不进入候选版默认界面，避免与最终识别争用资源。
 
-```text
-Electron main process
-  - globalShortcut
-  - Tray
-  - Windows foreground window and paste
-  - IPC
+## 隐私与数据
 
-React renderer
-  - settings and diagnostics UI
-  - manual recording tests
+音频识别和基础整理在本机执行，没有遥测和云端同步。首次模型下载会连接所选模型来源；默认官方 Hugging Face，第三方镜像必须由用户选择。
 
-Python FastAPI local API
-  - sounddevice recording
-  - faster-whisper / SenseVoice
-  - conservative text structure
+配置、模型和最近 50 条文字位于 `%APPDATA%\\liketypeless`。成功处理的录音删除，失败录音最多保留 24 小时，在应用运行或下次启动时清理。设置中可以清除结果与暂存音频。卸载不默认删除用户配置和模型。
 
-Ollama
-  - local qwen3:8b
-```
+关闭主窗口会隐藏到托盘；从托盘选择“退出应用”才会关闭后台。录音过程中直接退出会停止设备，未完成处理的内容可能需要恢复；不要把强制终止或断电视为可靠的录音保存方式。
 
-## 环境要求
+## 开发与构建
 
-- Windows 10/11
-- Node.js 24+
-- Python 3.12+
-- Ollama
-- 可选 NVIDIA GPU 和 CUDA runtime
-- 至少一个本地 faster-whisper 模型
-- 至少一个 Ollama 模型
+技术栈为 Electron / React / TypeScript 和 Python / FastAPI。识别使用 faster-whisper small，默认 beam=1；没有自训练模型。
 
-## 安装
-
-在仓库根目录执行：
+开发机需要 Node 24 和 uv。建立独立 Python 3.12.13 环境并按哈希锁安装：
 
 ```powershell
-npm install
-
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r apps/local-api/requirements.txt
-```
-
-如果默认 Python 环境不适合安装依赖，可以使用项目内 `.venv`，不要混用 Anaconda 环境。
-
-## 准备 Ollama 模型
-
-安装 Ollama 后拉取默认模型：
-
-```powershell
-ollama pull qwen3:8b
-```
-
-应用使用 Ollama 的本地 HTTP 服务，默认地址是：
-
-```text
-http://127.0.0.1:11434
-```
-
-如果模型下载需要代理，注意：下载工作由后台 `ollama serve` 进程执行，不是当前 PowerShell 进程单独执行。先重启带代理的 Ollama 服务：
-
-```powershell
-.\scripts\start-ollama-proxy.ps1
-ollama pull qwen3:8b
-```
-
-脚本默认使用：
-
-```text
-http://127.0.0.1:7897
-```
-
-也可以指定代理：
-
-```powershell
-.\scripts\start-ollama-proxy.ps1 -ProxyUrl "http://127.0.0.1:7897"
-```
-
-## 准备 faster-whisper 模型
-
-推荐提前下载模型，不要等第一次录音时下载：
-
-```powershell
-npm run download:stt
-```
-
-当前应用会按以下顺序自动检测本地模型：
-
-```text
-D:\Models\faster-whisper-small
-D:\Models\faster-whisper-base
-D:\Models\faster-whisper-tiny
-```
-
-也可以显式指定路径：
-
-```powershell
-$env:LIKETYPELESS_STT_MODEL_PATH="D:\Models\faster-whisper-small"
-```
-
-常用配置：
-
-```powershell
-$env:LIKETYPELESS_STT_MODEL="small"
-$env:LIKETYPELESS_STT_DEVICE="auto"
-$env:LIKETYPELESS_STT_COMPUTE_TYPE="auto"
-$env:LIKETYPELESS_STT_BEAM_SIZE="1"
-```
-
-长录音默认每 90 秒分块后依次转写，以避免单次离线识别占用过久或内存峰值过高；短于该阈值的录音仍走原来的单次识别路径。可调整或关闭分块：
-
-```powershell
-$env:LIKETYPELESS_STT_CHUNK_SECONDS="120" # 每 120 秒一块
-$env:LIKETYPELESS_STT_CHUNK_SECONDS="0"   # 关闭分块
-```
-
-如果需要通过代理下载 Hugging Face 模型：
-
-```powershell
-$env:HTTP_PROXY="http://127.0.0.1:7897"
-$env:HTTPS_PROXY="http://127.0.0.1:7897"
-$env:ALL_PROXY="http://127.0.0.1:7897"
-$env:HF_HUB_DISABLE_XET="1"
-npm run download:stt
-```
-
-## 运行
-
-先确认 Ollama 服务正在运行，然后在仓库根目录执行：
-
-```powershell
+./scripts/setup-release.ps1
 npm run dev
 ```
 
-这会同时启动：
+桌面开发进程会自动启动发布环境里的后台，不再另开无会话凭据的 API。不要把旧 Anaconda 的 site-packages 注入发布环境。
 
-- Python API：`http://127.0.0.1:8716`
-- Electron renderer：默认 `http://localhost:5173`
-
-如果 `5173` 已被其他项目占用：
-
-```powershell
-$env:LIKETYPELESS_RENDERER_PORT="5183"
-$env:ELECTRON_RENDERER_URL="http://localhost:5183"
-npm run dev:desktop
-```
-
-如果快捷键和中文输入法冲突，可以改用：
-
-```powershell
-$env:LIKETYPELESS_GLOBAL_HOTKEY="Ctrl+Shift+Space"
-npm run dev:desktop
-```
-
-也可以直接在主窗口的 **Global hotkey** 和 **Input device** 设置中修改。快捷键会立即尝试重新注册；输入设备会在下一次开始录音时生效。设置保存在当前 Windows 用户的 Electron 数据目录中，不会写入仓库或上传网络。
-
-**Voice output** 可选择“Chinese structured text”或“Chinese speech to English”。后者先转写并保守整理中文，再通过本地 Ollama 翻译为英文；翻译服务不可用时会报错，不会静默粘贴未翻译文本。
-
-## 验证
-
-运行 TypeScript 检查：
+验证与封装：
 
 ```powershell
 npm run check
-```
-
-运行 Python 编译检查：
-
-```powershell
-npm run check:api
-```
-
-检查 API：
-
-```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:8716/health"
-```
-
-## Windows 安装包与首次启动
-
-生成 NSIS 安装程序：
-
-```powershell
+npm run test:api
+npm run test:desktop
+npm run test:smoke
 npm run dist
 ```
 
-安装包会输出到 `apps/desktop/release/`。首次启动前，请先按“安装”章节创建项目 Python 环境、安装本地 API 依赖、下载 STT 模型，并启动 Ollama。主窗口顶部会显示 Ollama/API 状态；无法连接时先运行 `npm run dev:api` 排查本地服务。
+安装包在 `apps/desktop/release/`。后台先用 PyInstaller 目录模式封装，再由 NSIS 当前用户安装器携带。开发环境代理仅按本机需要设置，不写入应用配置。
 
-实际使用测试：
+首次构建需要下载 Electron 和安装工具。安装包未签名，Windows 可能显示未知发布者；不要关闭安全防护来绕过系统告警。分发前需核对安装包哈希、第三方许可及验证矩阵。
 
-1. 打开记事本、浏览器输入框或其他普通文本输入框。
-2. 按一次 `Shift+Space` 开始录音。
-3. 正常说话。
-4. 再按一次 `Shift+Space`。
-5. 等待转写和结构化完成，文本会自动粘贴。
+## 评测
 
-## 常见问题
+[评测目录](evals/README.md)包括公开语料抽样、音频统一、CER、延迟、翻译指标、整理红线、人工审阅与基线对照。旧结果和失败用例保留，不用一次较好的结果替代整组试验。
 
-### 快捷键注册失败
+- [已有模型对照](evals/reports/2026-09-24-asr-comparison.md)
+- [同类产品和评测边界](docs/research/2026-09-29-voice-typing-landscape.md)
+- [桌面验证矩阵](docs/v0.1-acceptance.md)
 
-`Shift+Space` 可能和中文输入法的全角/半角切换冲突。改用：
+模型文件到文字的耗时不等于桌面停止录音到实际写入的耗时。合成音频与重复样本不能代表独立的麦克风录音或跨应用输入测试。
 
-```powershell
-$env:LIKETYPELESS_GLOBAL_HOTKEY="Ctrl+Shift+Space"
-```
+## 授权
 
-某些应用以管理员权限运行时，普通权限的 liketypeless 可能无法恢复焦点或模拟粘贴。可以让两者使用相同权限级别后再测试。
-
-### 录音结束后等待较久
-
-当前流程是批量识别，耗时主要来自：
-
-1. faster-whisper 处理整段音频。
-2. Ollama 对完整文本做结构化。
-
-短文本和短录音会更快。长录音已经按默认 90 秒分块转写；后续会增加实时预览。
-
-### API 找不到模块或启动到旧代码
-
-不要混用 Anaconda 和项目 `.venv`。推荐：
-
-```powershell
-.\.venv\Scripts\python.exe apps/local-api/scripts/run_api.py
-```
-
-如果 `8716` 被旧进程占用，先检查：
-
-```powershell
-netstat -ano | Select-String ":8716"
-Get-CimInstance Win32_Process -Filter "name = 'python.exe'" |
-  Select-Object ProcessId,CommandLine
-```
-
-### 模型没有下载或 Ollama 拉取超时
-
-先运行：
-
-```powershell
-.\scripts\start-ollama-proxy.ps1
-```
-
-然后再执行 `ollama pull`。下载日志会写入：
-
-```text
-ollama.proxy.out.log
-ollama.proxy.err.log
-```
-
-## 项目结构
-
-```text
-apps/
-  desktop/
-    src/main/       Electron 主进程、快捷键、托盘、自动粘贴
-    src/preload/    安全 IPC bridge
-    src/renderer/   React 设置和测试界面
-  local-api/
-    app/            FastAPI、录音、ASR、结构化
-    scripts/        模型下载和独立 provider runner
-packages/
-  shared/           前后端共享类型
-docs/
-  decisions/        架构决策记录
-scripts/
-  start-ollama-proxy.ps1
-```
-
-## 路线图
-
-- [x] 本地录音和 faster-whisper 转写
-- [x] GPU/CPU 自动回退
-- [x] Ollama 保守结构化
-- [x] 全局快捷键录音
-- [x] 自动粘贴到原输入框
-- [x] 中文句末标点补全
-- [x] 录音状态悬浮窗
-- [x] 长录音分块转写
-- [x] 实时转写预览
-- [x] 可配置快捷键和输入设备界面
-- [ ] 浏览器和文档划线翻译
-- [x] 中文转英文语音输入模式
-- [x] 打包安装程序和首次启动检查
-
-## 协作
-
-请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。架构取舍记录在 `docs/decisions/`，涉及核心流程的修改应同步更新对应决策记录。
-
-## 许可证
-
-当前仓库尚未选择开源许可证。许可证确定前，请不要将代码用于商业分发或发布衍生版本。
+项目尚未选择开源许可证，公开源码不等于授权商业使用或再分发。发布候选包的依赖清单与第三方许可会随构建生成；第三方组件按各自许可证使用。正式公共发布前仍需完成许可核对。

@@ -5,6 +5,7 @@ out/
 apps/desktop/release/
 .vite/
 .venv/
+.venv-release/
 .venv-asr-py312/
 __pycache__/
 *.pyc

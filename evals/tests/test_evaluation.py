@@ -18,6 +18,13 @@ from merge_reviews import merge  # noqa: E402
 
 
 class EvaluationTests(unittest.TestCase):
+    def test_cer_release_budget_is_one_percentage_point(self) -> None:
+        manifest = {"a": {"id": "a", "source": "test", "reference": "甲" * 100}}
+        def report(errors):
+            return evaluate(manifest, {"a": {"id": "a", "asr_text": "乙" * errors + "甲" * (100 - errors), "stt_ms": 1, "end_to_end_ms": 1}})
+        self.assertFalse(compare(report(10), report(11))[1])
+        self.assertTrue(compare(report(10), report(12))[1])
+
     def test_cer_and_safety_redline(self) -> None:
         manifest = {"a": {"id": "a", "source": "test", "reference": "你好世界", "duration_seconds": 2,
                           "input_text": "不要删掉明天", "protected_terms": ["明天"], "forbidden_phrases": ["今天"]}}

@@ -1,0 +1,33 @@
+name: Desktop product checks
+on:
+  push:
+    paths: ["apps/**", "packages/**", "scripts/**", "package*.json", "evals/tests/**", ".github/workflows/desktop-validation.yml"]
+  pull_request:
+    paths: ["apps/**", "packages/**", "scripts/**", "package*.json", "evals/tests/**", ".github/workflows/desktop-validation.yml"]
+jobs:
+  product:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: astral-sh/setup-uv@v6
+      - name: Prepare independent Python runtime
+        run: |
+          uv python install 3.12.13
+          uv venv --python 3.12.13 .venv-release
+          uv pip install --python .venv-release/Scripts/python.exe -r apps/local-api/requirements.txt httpx==0.28.1
+      - run: npm ci
+      - run: npm run check
+      - run: npm run test:api
+      - run: npm run test:desktop
+      - run: npm run test:smoke
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-screenshots
+          path: evals/local/desktop-smoke/*.png

@@ -1,47 +1,41 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { DesktopSettings } from "../main/settings-store";
 import type {
   AudioDevice,
+  DesktopState,
   HealthResponse,
-  RecordingStatus,
-  StopRecordingResponse,
-  StructureResponse,
-  TranscribeResponse,
-  VoiceFinishResponse,
-  VoicePreviewResponse,
-  VoiceTranscribeResponse
+  ModelStatus,
+  RecentResult,
 } from "@liketypeless/shared";
+import type { DesktopSettings } from "../main/settings-store";
 
-export type LikeTypelessApi = {
-  health: () => Promise<HealthResponse>;
-  audioDevices: () => Promise<AudioDevice[]>;
-  recordingStatus: () => Promise<RecordingStatus>;
-  startRecording: () => Promise<RecordingStatus>;
-  stopRecording: () => Promise<StopRecordingResponse>;
-  transcribe: (filePath: string, provider?: string) => Promise<TranscribeResponse>;
-  transcribeVoiceRecording: () => Promise<VoiceTranscribeResponse>;
-  previewVoiceRecording: () => Promise<VoicePreviewResponse>;
-  finishVoiceRecording: () => Promise<VoiceFinishResponse>;
-  structure: (text: string) => Promise<StructureResponse>;
-  settings: () => Promise<DesktopSettings>;
-  updateSettings: (settings: DesktopSettings) => Promise<DesktopSettings>;
+const api = {
+  health: (): Promise<HealthResponse> => ipcRenderer.invoke("api:health"),
+  audioDevices: (): Promise<AudioDevice[]> =>
+    ipcRenderer.invoke("api:audio-devices"),
+  state: (): Promise<DesktopState> => ipcRenderer.invoke("desktop:state"),
+  toggleRecording: (): Promise<DesktopState> =>
+    ipcRenderer.invoke("desktop:toggle"),
+  restart: (): Promise<void> => ipcRenderer.invoke("desktop:restart"),
+  settings: (): Promise<DesktopSettings> => ipcRenderer.invoke("settings:get"),
+  updateSettings: (settings: DesktopSettings): Promise<DesktopSettings> =>
+    ipcRenderer.invoke("settings:update", settings),
+  modelStatus: (): Promise<ModelStatus> => ipcRenderer.invoke("models:status"),
+  prepareModel: (endpoint: string): Promise<ModelStatus> =>
+    ipcRenderer.invoke("models:prepare", endpoint),
+  importModel: (): Promise<ModelStatus | null> =>
+    ipcRenderer.invoke("models:import"),
+  results: (): Promise<RecentResult[]> => ipcRenderer.invoke("results:list"),
+  clearResults: (): Promise<void> => ipcRenderer.invoke("results:clear"),
+  copyResult: (id: string): Promise<void> =>
+    ipcRenderer.invoke("results:copy", id),
+  retryResult: (id: string): Promise<void> =>
+    ipcRenderer.invoke("results:retry", id),
+  onState: (listener: (state: DesktopState) => void): (() => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, state: DesktopState) =>
+      listener(state);
+    ipcRenderer.on("state:changed", wrapped);
+    return () => ipcRenderer.removeListener("state:changed", wrapped);
+  },
 };
-
-const api: LikeTypelessApi = {
-  health: () => ipcRenderer.invoke("api:health") as Promise<HealthResponse>,
-  audioDevices: () => ipcRenderer.invoke("api:audio-devices") as Promise<AudioDevice[]>,
-  recordingStatus: () => ipcRenderer.invoke("api:recording-status") as Promise<RecordingStatus>,
-  startRecording: () => ipcRenderer.invoke("api:start-recording") as Promise<RecordingStatus>,
-  stopRecording: () => ipcRenderer.invoke("api:stop-recording") as Promise<StopRecordingResponse>,
-  transcribe: (filePath: string, provider?: string) =>
-    ipcRenderer.invoke("api:transcribe", filePath, provider) as Promise<TranscribeResponse>,
-  transcribeVoiceRecording: () =>
-    ipcRenderer.invoke("api:transcribe-voice-recording") as Promise<VoiceTranscribeResponse>,
-  previewVoiceRecording: () => ipcRenderer.invoke("api:preview-voice-recording") as Promise<VoicePreviewResponse>,
-  finishVoiceRecording: () => ipcRenderer.invoke("api:finish-voice-recording") as Promise<VoiceFinishResponse>,
-  structure: (text: string) => ipcRenderer.invoke("api:structure", text) as Promise<StructureResponse>,
-  settings: () => ipcRenderer.invoke("settings:get") as Promise<DesktopSettings>,
-  updateSettings: (settings: DesktopSettings) => ipcRenderer.invoke("settings:update", settings) as Promise<DesktopSettings>
-};
-
+export type LikeTypelessApi = typeof api;
 contextBridge.exposeInMainWorld("liketypeless", api);

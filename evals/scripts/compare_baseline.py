@@ -1,4 +1,4 @@
-"""Compare reports from the same manifest; fail on an automatic safety regression."""
+"""Compare fixed-manifest reports; gate safety and a one-percentage-point CER budget."""
 from __future__ import annotations
 
 import argparse
@@ -69,6 +69,12 @@ def compare(baseline: dict, candidate: dict) -> tuple[str, bool]:
     before = baseline["translation"].get("automatic_violation_rate")
     after = candidate["translation"].get("automatic_violation_rate")
     regression |= before is not None and after is not None and after > before
+    before_cer = baseline["overall"]["asr"]["cer"]
+    after_cer = candidate["overall"]["asr"]["cer"]
+    if before_cer is not None and after_cer is not None:
+        cer_failed = after_cer - before_cer > 0.01 + 1e-9
+        regression |= cer_failed
+        lines.append(f"ASR CER budget (maximum +1 percentage point): {'FAIL' if cer_failed else 'PASS'}")
     # A new critical failure must not be hidden by fixing a different sample.
     for stage in ("safety", "translation"):
         newly_unsafe = sorted(set(candidate[stage].get("automatic_violation_ids", []))
@@ -77,7 +83,7 @@ def compare(baseline: dict, candidate: dict) -> tuple[str, bool]:
             regression = True
             lines.append(f"New {stage} violations: " + ", ".join(newly_unsafe))
     lines.append("")
-    lines.append("Safety gate: **FAIL**" if regression else "Safety gate: **PASS**")
+    lines.append("Quality gate: **FAIL**" if regression else "Quality gate: **PASS**")
     return "\n".join(lines), regression
 
 

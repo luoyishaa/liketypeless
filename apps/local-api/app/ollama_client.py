@@ -42,7 +42,7 @@ def generate_text(model: str, prompt: str) -> str:
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise OllamaError(f"Ollama HTTP {exc.code}: {detail}") from exc
-    except (OSError, urllib.error.URLError) as exc:
+    except (OSError, urllib.error.URLError, ValueError) as exc:
         raise OllamaError(f"Ollama is not reachable: {exc}") from exc
 
     text = data.get("response")
@@ -51,7 +51,7 @@ def generate_text(model: str, prompt: str) -> str:
     return text.strip()
 
 
-def generate_chat_text(model: str, system_prompt: str, user_text: str) -> str:
+def generate_chat_text(model: str, system_prompt: str, user_text: str, timeout: float = 120) -> str:
     payload: dict[str, Any] = {
         "model": model,
         "messages": [
@@ -74,14 +74,16 @@ def generate_chat_text(model: str, system_prompt: str, user_text: str) -> str:
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=120) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             data = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise OllamaError(f"Ollama HTTP {exc.code}: {detail}") from exc
-    except (OSError, urllib.error.URLError) as exc:
+    except (OSError, urllib.error.URLError, ValueError) as exc:
         raise OllamaError(f"Ollama is not reachable: {exc}") from exc
 
+    if not isinstance(data, dict):
+        raise OllamaError("Ollama response must be an object.")
     message = data.get("message")
     if not isinstance(message, dict):
         raise OllamaError("Ollama chat response did not contain a message.")

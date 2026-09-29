@@ -5,6 +5,8 @@ from pydantic import BaseModel
 
 
 class AppSettings(BaseModel):
+    data_dir: Path = Path(os.getenv("LIKETYPELESS_DATA_DIR", str(Path(os.getenv("LOCALAPPDATA", str(Path.home()))) / "liketypeless")))
+    session_token: str = os.getenv("LIKETYPELESS_SESSION_TOKEN", "")
     default_model: str = "qwen3:8b"
     ollama_base_url: str = "http://127.0.0.1:11434"
     stt_provider: str = "local-faster-whisper"
@@ -20,7 +22,7 @@ class AppSettings(BaseModel):
     sensevoice_python: str = str(Path(__file__).resolve().parents[3] / ".venv-asr-py312" / "Scripts" / "python.exe")
     sensevoice_runner: str = str(Path(__file__).resolve().parents[1] / "scripts" / "sensevoice_runner.py")
     llm_num_predict: int = 220
-    hf_endpoint: str = "https://hf-mirror.com"
+    hf_endpoint: str = "https://huggingface.co"
 
 
 def default_stt_model_path() -> str | None:
@@ -28,15 +30,7 @@ def default_stt_model_path() -> str | None:
     if configured_path:
         return configured_path
 
-    for local_default in (
-        Path("D:/Models/faster-whisper-small"),
-        Path("D:/Models/faster-whisper-base"),
-        Path("D:/Models/faster-whisper-tiny"),
-    ):
-        if local_default.exists():
-            return str(local_default)
-
-    return None
+    return str(AppSettings().data_dir / "models" / "small")
 
 
 settings = AppSettings(
@@ -61,7 +55,7 @@ settings = AppSettings(
         str(Path(__file__).resolve().parents[1] / "scripts" / "sensevoice_runner.py"),
     ),
     llm_num_predict=int(os.getenv("LIKETYPELESS_LLM_NUM_PREDICT", "220")),
-    hf_endpoint=os.getenv("HF_ENDPOINT", "https://hf-mirror.com"),
+    hf_endpoint=os.getenv("HF_ENDPOINT", "https://huggingface.co"),
 )
 
 os.environ.setdefault("HF_ENDPOINT", settings.hf_endpoint)

@@ -8,18 +8,25 @@
     "packages/shared"
   ],
   "scripts": {
-    "dev": "concurrently -n api,desktop -c blue,green \"npm run dev:api\" \"npm run dev:desktop\"",
+    "dev": "npm run dev:desktop",
     "dev:api": ".\\.venv\\Scripts\\python.exe apps/local-api/scripts/run_api.py",
     "dev:desktop": "npm --workspace @liketypeless/shared run build && npm --workspace apps/desktop run dev",
     "check": "npm --workspace @liketypeless/shared run check && npm --workspace @liketypeless/desktop run check",
     "check:api": "cd apps/local-api && python -m compileall app scripts",
     "download:stt": "cd apps/local-api && python scripts/download_stt_model.py --model small",
-    "dist": "npm --workspace apps/desktop run dist",
+    "build:backend": ".\\.venv-release\\Scripts\\python.exe -m PyInstaller --noconfirm apps/local-api/product.spec",
+    "build:icon": "node scripts/build-icon.mjs",
+    "build:licenses": ".\\.venv-release\\Scripts\\python.exe scripts/collect-licenses.py",
+    "dist": "npm run build:icon && npm run build:licenses && npm run build:backend && npm --workspace @liketypeless/shared run build && npm --workspace apps/desktop run dist",
+    "test:smoke": "npm --workspace apps/desktop run build && node evals/tests/desktop-smoke.mjs",
+    "test:desktop": "node --test evals/tests/desktop-input.test.mjs evals/tests/backend-lifecycle.test.mjs",
+    "test:api": ".\\.venv-release\\Scripts\\python.exe -m unittest discover -s apps/local-api/tests -v",
     "eval:fixture": "python evals/scripts/run_text_regression.py --manifest evals/fixtures/text-regression.jsonl --output evals/predictions/ci-text.jsonl && python evals/scripts/evaluate.py --manifest evals/fixtures/text-regression.jsonl --predictions evals/predictions/ci-text.jsonl --output evals/reports/ci-text.json",
     "eval:compare": "python evals/scripts/compare_baseline.py --baseline evals/reports/text-baseline.json --candidate evals/reports/ci-text.json"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "playwright": "1.58.2"
   }
 }
