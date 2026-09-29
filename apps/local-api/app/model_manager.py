@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 import shutil
 import threading
+import urllib.error
 import urllib.request
 
 REPOSITORY = "Systran/faster-whisper-small"
@@ -49,6 +51,50 @@ class ModelManager:
         with self._lock:
             self._state.update(values)
 
+    def _download(self, name: str, spec: tuple, endpoint: str, partial: Path, completed: int):
+        expected_size = spec[0]
+        # A server can close a large response without raising. Keep verified
+        # byte counts and resume with a checked Content-Range, across retries
+        # and application restarts.
+        for attempt in range(5):
+            offset = partial.stat().st_size if partial.exists() else 0
+            if offset > expected_size:
+                partial.unlink()
+                offset = 0
+            if offset == expected_size:
+                return
+            request = urllib.request.Request(
+                f"{endpoint}/{REPOSITORY}/resolve/{REVISION}/{name}",
+                headers={"Range": f"bytes={offset}-"} if offset else {},
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    if response.status == 206:
+                        match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", response.headers.get("Content-Range", ""))
+                        if not match or int(match[1]) != offset or int(match[3]) != expected_size:
+                            raise ValueError(f"{name} 续传范围异常，请重新下载。")
+                    elif response.status == 200:
+                        offset = 0  # Origin ignored Range: restart, never append duplicate bytes.
+                    else:
+                        raise ValueError(f"{name} 下载响应异常（{response.status}）。")
+                    count = offset
+                    with partial.open("ab" if offset else "wb") as output:
+                        while chunk := response.read(1024 * 1024):
+                            output.write(chunk)
+                            count += len(chunk)
+                            if count > expected_size:
+                                raise ValueError("模型下载大小异常。")
+                            self._update(downloadedBytes=completed + count)
+            except urllib.error.HTTPError:
+                raise
+            except (OSError, urllib.error.URLError):
+                if attempt == 4:
+                    raise ValueError(f"{name} 下载中断，已保留进度；请重试。") from None
+                continue
+            if partial.stat().st_size == expected_size:
+                return
+        raise ValueError(f"{name} 下载不完整，已保留进度；请重试。")
+
     def prepare(self, source: Path | None = None, endpoint: str = "https://huggingface.co", verify_only=False):
         if endpoint not in ("https://huggingface.co", "https://hf-mirror.com"):
             raise ValueError("不支持的模型来源。")
@@ -74,25 +120,7 @@ class ModelManager:
                             raise ValueError(f"{name} 与当前固定模型版本不一致。")
                         shutil.copyfile(candidate, partial)
                     else:
-                        offset = partial.stat().st_size if partial.exists() else 0
-                        if offset >= spec[0]:
-                            partial.unlink()
-                            offset = 0
-                        request = urllib.request.Request(
-                            f"{endpoint}/{REPOSITORY}/resolve/{REVISION}/{name}",
-                            headers={"Range": f"bytes={offset}-"} if offset else {},
-                        )
-                        with urllib.request.urlopen(request, timeout=30) as response:
-                            if response.status != 206:
-                                offset = 0
-                            with partial.open("ab" if offset else "wb") as output:
-                                count = offset
-                                while chunk := response.read(1024 * 1024):
-                                    output.write(chunk)
-                                    count += len(chunk)
-                                    if count > spec[0]:
-                                        raise ValueError("模型下载大小异常。")
-                                    self._update(downloadedBytes=completed + count)
+                        self._download(name, spec, endpoint, partial, completed)
                     if not valid_file(partial, spec):
                         partial.unlink(missing_ok=True)
                         raise ValueError(f"{name} 校验失败，请重试。")

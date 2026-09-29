@@ -1,62 +1,39 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { deliverText } from "../../apps/desktop/src/main/input-delivery.ts";
+import { deliverToWindow } from "../../apps/desktop/src/main/windows-input.ts";
 
-test("an unavailable target never changes the clipboard", async () => {
-  let changed = false;
-  const result = await deliverText("你好。", "target", {
-    focus: async () => {
-      throw new Error("目标窗口已关闭");
+test("without a target the saved result stays available without touching Windows", async () => {
+  let called = false;
+  const result = await deliverText("你好。", null, {
+    deliver: async () => {
+      called = true;
     },
-    begin: async () => {
-      changed = true;
-      return "lease";
-    },
-    paste: async () => {},
-    restore: async () => {},
   });
   assert.equal(result.status, "ready-to-copy");
-  assert.equal(changed, false);
+  assert.equal(called, false);
 });
 
-test("non-text clipboard is left untouched and the result remains available for copying", async () => {
-  let pasted = false;
+test("native failure keeps the result available for manual copy", async () => {
   const result = await deliverText("你好。", "target", {
-    focus: async () => {},
-    begin: async () => {
-      throw new Error("剪贴板含图片");
+    deliver: async () => {
+      throw new Error("焦点已改变，文字已保留");
     },
-    paste: async () => {
-      pasted = true;
-    },
-    restore: async () => {},
   });
   assert.equal(result.status, "ready-to-copy");
-  assert.equal(pasted, false);
+  assert.match(result.reason, /焦点已改变/);
 });
 
-test("failed paste releases the clipboard lease without claiming success", async () => {
-  let restored = false;
+test("native completion means key submission, not verified insertion", async () => {
   const result = await deliverText("你好。", "target", {
-    focus: async () => {},
-    begin: async () => "lease",
-    paste: async () => {
-      throw new Error("焦点已改变");
-    },
-    restore: async () => {
-      restored = true;
-    },
-  });
-  assert.equal(restored, true);
-  assert.equal(result.status, "ready-to-copy");
-});
-
-test("successful key submission is not reported as verified insertion", async () => {
-  const result = await deliverText("你好。", "target", {
-    focus: async () => {},
-    begin: async () => "lease",
-    paste: async () => {},
-    restore: async () => {},
+    deliver: async () => {},
   });
   assert.equal(result.status, "paste-requested");
+});
+
+test("invalid target never invokes a native clipboard transaction", async () => {
+  await assert.rejects(
+    deliverToWindow("not-a-window", "你好。"),
+    /无效的目标窗口/,
+  );
 });

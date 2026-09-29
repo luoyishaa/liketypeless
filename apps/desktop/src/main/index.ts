@@ -19,13 +19,7 @@ import type {
   RecentResult,
   VoiceFinishResponse,
 } from "@liketypeless/shared";
-import {
-  beginClipboard,
-  focusWindow,
-  getForegroundWindowHandle,
-  pasteIntoWindow,
-  restoreClipboard,
-} from "./windows-input";
+import { deliverToWindow, getForegroundWindowHandle } from "./windows-input";
 import { BackendProcess } from "./backend-process";
 import { deliverText } from "./input-delivery";
 import {
@@ -120,14 +114,52 @@ function showWindow() {
   mainWindow?.focus();
 }
 
+async function showRecoveryDialog(text: string | null, reason: string) {
+  if (!settings.onboardingComplete) {
+    showWindow();
+    return;
+  }
+  try {
+    const buttons = text
+      ? ["复制文字", "打开最近结果", "稍后处理"]
+      : ["打开最近结果", "稍后处理"];
+    const { response } = await dialog.showMessageBox({
+      type: "warning",
+      title: text ? "liketypeless · 结果已保留" : "liketypeless · 需要处理",
+      message: text ? "文字已保留，可以手动复制" : "语音输入需要处理",
+      detail:
+        reason +
+        (text
+          ? "\n\n" + text.slice(0, 240) + (text.length > 240 ? "…" : "")
+          : ""),
+      buttons,
+      defaultId: 0,
+      cancelId: buttons.length - 1,
+      noLink: true,
+    });
+    if (text && response === 0) await clipboard.writeText(text);
+    else if (response === (text ? 1 : 0)) showWindow();
+  } catch {
+    publish({
+      phase: "error",
+      message: "无法打开恢复提示或写入剪贴板，请到最近结果重试。",
+    });
+    showWindow();
+  }
+}
+
 function createWindow() {
+  const showInitially =
+    !settings.onboardingComplete &&
+    (!process.env.LIKETYPELESS_TEST_DATA_DIR ||
+      process.env.LIKETYPELESS_TEST_SHOW_WINDOW === "1");
   mainWindow = new BrowserWindow({
     width: 1060,
     height: 780,
     minWidth: 840,
     minHeight: 640,
     title: "liketypeless",
-    show: !process.env.LIKETYPELESS_TEST_DATA_DIR,
+    show: showInitially,
     backgroundColor: "#f4f6f2",
     autoHideMenuBar: true,
     webPreferences: {
@@ -176,7 +208,7 @@ function updateTray() {
   tray.setToolTip("liketypeless · 中文语音输入");
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: "打开主窗口", click: showWindow },
+      { label: "设置与最近结果", click: showWindow },
       { label: "录音快捷键：" + settings.globalHotkey, enabled: false },
       { type: "separator" },
       { label: "退出应用", click: () => app.quit() },
@@ -206,15 +238,14 @@ async function toggleRecording(fromHotkey: boolean) {
         "/voice/recording/finish",
         { outputMode: "zh", cleanupMode: settings.cleanupMode },
       );
+      const backendElapsedMs = Math.round(performance.now() - started);
       recording = false;
       const text = result.structuredText.trim() || result.transcript.trim();
       if (!text)
         throw new Error("没有识别到文字。请检查麦克风，再说一句完整的话。");
+      const deliveryStarted = performance.now();
       const delivery = await deliverText(text, target, {
-        focus: focusWindow,
-        begin: beginClipboard,
-        paste: pasteIntoWindow,
-        restore: restoreClipboard,
+        deliver: deliverToWindow,
       });
       publish({
         phase: delivery.status,
@@ -222,8 +253,14 @@ async function toggleRecording(fromHotkey: boolean) {
           .filter(Boolean)
           .join(" "),
         elapsedMs: Math.round(performance.now() - started),
+        backendElapsedMs,
+        deliveryElapsedMs: Math.round(performance.now() - deliveryStarted),
       });
-      if (delivery.status === "ready-to-copy") showWindow();
+      if (
+        delivery.status === "ready-to-copy" &&
+        (fromHotkey || !mainWindow?.isVisible())
+      )
+        void showRecoveryDialog(text, delivery.reason);
     }
   } catch (error) {
     const status = await backend
@@ -236,7 +273,8 @@ async function toggleRecording(fromHotkey: boolean) {
     });
     if (Notification.isSupported())
       new Notification({ title: "liketypeless", body: state.message }).show();
-    showWindow();
+    if (fromHotkey || !mainWindow?.isVisible())
+      void showRecoveryDialog(null, state.message);
   } finally {
     if (!recording) target = null;
     busy = false;
@@ -255,6 +293,7 @@ function registerIpc() {
   handle("api:health", () => backend.request<HealthResponse>("/health"));
   handle("api:audio-devices", () => backend.request("/audio/devices"));
   handle("desktop:state", () => state);
+  handle("desktop:hide", () => mainWindow?.hide());
   handle("desktop:toggle", () => toggleRecording(false));
   handle("desktop:restart", async () => {
     if (busy || recording) throw new Error("请先结束录音和处理。");
@@ -310,7 +349,7 @@ function registerIpc() {
     );
     if (!result || !(result.text || result.transcript))
       throw new Error("这条记录没有可复制的文字。");
-    clipboard.writeText(result.text || result.transcript);
+    await clipboard.writeText(result.text || result.transcript);
   });
   handle("results:retry", async (id: string) => {
     if (busy || recording || !/^[a-f0-9]{32}$/.test(id))
@@ -370,15 +409,19 @@ else {
         registered
           ? {
               phase: "ready",
-              message: "本机服务已就绪，请完成模型与麦克风准备。",
+              message: settings.onboardingComplete
+                ? "本机服务已就绪，按快捷键开始录音。"
+                : "本机服务已就绪，请完成模型与麦克风准备。",
             }
           : { phase: "error", message: "录音快捷键注册失败，请到设置中更换。" },
       );
+      if (!registered) void showRecoveryDialog(null, state.message);
     } catch (error) {
       publish({
         phase: "error",
         message: error instanceof Error ? error.message : String(error),
       });
+      void showRecoveryDialog(null, state.message);
     }
     app.on("activate", showWindow);
   });

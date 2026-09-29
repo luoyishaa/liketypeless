@@ -13,6 +13,7 @@ const api = {
   audioDevices: (): Promise<AudioDevice[]> =>
     ipcRenderer.invoke("api:audio-devices"),
   state: (): Promise<DesktopState> => ipcRenderer.invoke("desktop:state"),
+  hideWindow: (): Promise<void> => ipcRenderer.invoke("desktop:hide"),
   toggleRecording: (): Promise<DesktopState> =>
     ipcRenderer.invoke("desktop:toggle"),
   restart: (): Promise<void> => ipcRenderer.invoke("desktop:restart"),

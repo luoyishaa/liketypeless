@@ -118,6 +118,8 @@ export type DesktopState = {
     | "error";
   message: string;
   elapsedMs?: number;
+  backendElapsedMs?: number;
+  deliveryElapsedMs?: number;
 };
 
 export type VoiceTranscribeResponse = {

@@ -1,10 +1,7 @@
 import { _electron as electron } from "playwright";
-import { mkdir } from "node:fs/promises";
-import { resolve, join } from "node:path";
+import { resolve } from "node:path";
 import assert from "node:assert/strict";
 
-const screenshots = resolve("evals/local/packaged-desktop");
-await mkdir(screenshots, { recursive: true });
 // This smoke test prepares the real application's user profile for manual acceptance.
 const restarts = Number(process.env.LIKETYPELESS_TEST_APP_RESTARTS || 1);
 for (let index = 0; index < restarts; index++) {
@@ -64,13 +61,7 @@ for (let index = 0; index < restarts; index++) {
       (await page.evaluate(() => window.liketypeless.health())).modelReady,
       true,
     );
-    // Hidden-window screenshots exercise the compositor, not lifecycle reliability.
-    // Keep visual capture in the separate single-cycle smoke test.
-    if (restarts === 1)
-      await page.screenshot({
-        path: join(screenshots, "ready.png"),
-        fullPage: true,
-      });
+    await page.getByRole("heading", { name: "把想法变成文字" }).waitFor();
     assert.deepEqual(errors, []);
     console.log(
       `Packaged application cycle ${index + 1}/${restarts} passed startup and pinned model availability.`,

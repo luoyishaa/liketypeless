@@ -323,13 +323,13 @@ function App() {
                     <button
                       disabled={locked}
                       onClick={() =>
-                        void act(
-                          () => save({ ...settings, onboardingComplete: true }),
-                          "引导完成。随时可以在状态与帮助中重新查看。",
-                        )
+                        void act(async () => {
+                          await save({ ...settings, onboardingComplete: true });
+                          await api.hideWindow();
+                        }, "引导完成，应用将留在托盘。")
                       }
                     >
-                      我已确认输入效果
+                      完成并收起到托盘
                     </button>
                   )}
                 </div>
@@ -371,7 +371,8 @@ function App() {
                 {state.elapsedMs !== undefined && (
                   <span>
                     {" "}
-                    · 本次处理与投递 {(state.elapsedMs / 1000).toFixed(2)} 秒
+                    · 停止后到文字可复制或发出粘贴请求{" "}
+                    {(state.elapsedMs / 1000).toFixed(2)} 秒
                   </span>
                 )}
               </div>
@@ -554,6 +555,10 @@ function App() {
                 <dd>{health?.runtime.device || "首次识别后显示"}</dd>
                 <dt>基础输入</dt>
                 <dd>无需 Ollama · 模型就绪后离线可用</dd>
+                <dt>最近一次后台处理</dt>
+                <dd>{state.backendElapsedMs === undefined ? "尚未测量" : `${(state.backendElapsedMs / 1000).toFixed(2)} 秒`}</dd>
+                <dt>最近一次输入投递</dt>
+                <dd>{state.deliveryElapsedMs === undefined ? "尚未测量" : `${(state.deliveryElapsedMs / 1000).toFixed(2)} 秒`}</dd>
                 <dt>智能整理</dt>
                 <dd>
                   {settings?.cleanupMode === "enhanced"

@@ -159,6 +159,45 @@ $targetProcess = [uint32]0
   return handle;
 }
 
+// One native transaction avoids launching three more PowerShell processes after
+// recognition. The clipboard lease stays in this process and is restored in
+// finally only when its sequence still matches; a newer user copy wins.
+export async function deliverToWindow(
+  handle: string,
+  text: string,
+): Promise<void> {
+  if (!/^[1-9]\d*:[1-9]\d*$/.test(handle))
+    throw new Error("无效的目标窗口，文字已保存，请手动复制。");
+  const [windowId, processId] = handle.split(":");
+  const encoded = Buffer.from(text, "utf16le").toString("base64");
+  await runPowerShell(`
+$ErrorActionPreference = "Stop"
+Add-Type -TypeDefinition @'
+${USER32_TYPE}
+'@
+$window = [IntPtr]::new(${windowId})
+$targetProcess = [uint32]0
+[void][LikeTypelessUser32]::WindowProcess($window, [ref]$targetProcess)
+if (-not [LikeTypelessUser32]::IsWindow($window) -or $targetProcess -ne ${processId}) { throw "目标窗口已关闭，请手动复制结果。" }
+if ([LikeTypelessUser32]::GetForegroundWindow() -ne $window) { throw "录音后切换了窗口，文字已保留，请手动复制。" }
+$lease = $null
+try {
+    $lease = [LikeTypelessUser32]::ClipboardBegin([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${encoded}')))
+    $actualProcess = [uint32]0
+    [void][LikeTypelessUser32]::WindowProcess($window, [ref]$actualProcess)
+    if ($actualProcess -ne ${processId} -or [LikeTypelessUser32]::GetForegroundWindow() -ne $window) { throw "输入焦点已改变，文字已保留，请手动复制。" }
+    if ([LikeTypelessUser32]::GetClipboardSequenceNumber() -ne [uint32]::Parse($lease.Split(':')[0])) { throw "剪贴板已被更新，已取消自动粘贴。" }
+    [LikeTypelessUser32]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)
+    [LikeTypelessUser32]::keybd_event(0x56, 0, 0, [UIntPtr]::Zero)
+    [LikeTypelessUser32]::keybd_event(0x56, 0, 2, [UIntPtr]::Zero)
+    [LikeTypelessUser32]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 250
+} finally {
+    if ($null -ne $lease) { [LikeTypelessUser32]::ClipboardRestore($lease) }
+}
+`);
+}
+
 export async function focusWindow(handle: string): Promise<void> {
   if (!/^[1-9]\d*:[1-9]\d*$/.test(handle)) {
     throw new Error(`Invalid foreground window handle: ${handle}`);
