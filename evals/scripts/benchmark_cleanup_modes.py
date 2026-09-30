@@ -16,7 +16,7 @@ import platform
 import secrets
 import sys
 import tempfile
-from time import perf_counter
+from time import perf_counter, sleep
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -36,7 +36,9 @@ def _model_start_state(base_url: str, model: str) -> str:
     return "loaded" if any(item.get("name") == model or item.get("model") == model for item in active) else "not_loaded"
 
 
-def measure(manifest_path: Path, enhanced: bool = False) -> dict:
+def measure(manifest_path: Path, enhanced: bool = False, prewarm_enhanced: bool = False) -> dict:
+    if prewarm_enhanced and not enhanced:
+        raise ValueError("Explicit prewarm requires enhanced mode")
     samples = list(read_jsonl(manifest_path).values())
     if not samples:
         raise ValueError("Manifest is empty")
@@ -61,6 +63,21 @@ def measure(manifest_path: Path, enhanced: bool = False) -> dict:
 
         rows = []
         with TestClient(app, headers={"Authorization": f"Bearer {token}"}) as client:
+            if prewarm_enhanced:
+                warmup_started = perf_counter()
+                client.post("/llm/prepare").raise_for_status()
+                state = "loading"
+                while perf_counter() - warmup_started < 60:
+                    status = client.get("/llm/status")
+                    status.raise_for_status()
+                    state = status.json()["state"]
+                    if state == "ready":
+                        break
+                    sleep(0.05)
+                if state != "ready":
+                    raise RuntimeError(f"Enhanced model did not become ready within 60 seconds: {state}")
+                runtime["warmup_policy"] = "explicit_optional_prepare"
+                runtime["prewarm_ms"] = round((perf_counter() - warmup_started) * 1000, 3)
             for sample in samples:
                 started = perf_counter()
                 response = client.post("/llm/structure", json={
@@ -86,7 +103,8 @@ def measure(manifest_path: Path, enhanced: bool = False) -> dict:
                     result = response.json()
                     rows[-1]["enhanced"] = {
                         "text": result["structuredText"], "provider": result["model"],
-                        "elapsed_ms": elapsed_ms,
+                        "elapsed_ms": elapsed_ms, "degraded": result["degraded"],
+                        "degradation_reason": result["degradationReason"],
                     }
 
     def summarize_mode(mode: str) -> dict:
@@ -120,6 +138,10 @@ def measure(manifest_path: Path, enhanced: bool = False) -> dict:
         if mode == "enhanced":
             summary["fallback_count"] = providers.get("local-conservative-rules", 0)
             summary["model_used_count"] = len(rows) - summary["fallback_count"]
+            summary["fallback_reasons"] = dict(sorted(Counter(
+                row["enhanced"]["degradation_reason"] for row in rows
+                if row["enhanced"]["degraded"]
+            ).items()))
             summary["changed_from_basic_samples"] = sum(
                 row["enhanced"]["text"] != row["basic"]["text"] for row in rows
             )
@@ -150,8 +172,9 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--enhanced", action="store_true", help="Also measure the optional LLM path and its fallback")
+    parser.add_argument("--prewarm-enhanced", action="store_true", help="Prepare the optional model before timing; records warmup separately")
     arguments = parser.parse_args()
-    report = measure(arguments.manifest, arguments.enhanced)
+    report = measure(arguments.manifest, arguments.enhanced, arguments.prewarm_enhanced)
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Measured {report['sample_count']} basic-cleanup inputs; report: {arguments.output}")

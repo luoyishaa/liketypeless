@@ -25,6 +25,9 @@ const api = {
     ipcRenderer.invoke("models:prepare", endpoint),
   importModel: (): Promise<ModelStatus | null> =>
     ipcRenderer.invoke("models:import"),
+  shortModelStatus: (): Promise<ModelStatus> => ipcRenderer.invoke("models:short:status"),
+  prepareShortModel: (): Promise<ModelStatus> => ipcRenderer.invoke("models:short:prepare"),
+  importShortModel: (): Promise<ModelStatus | null> => ipcRenderer.invoke("models:short:import"),
   results: (): Promise<RecentResult[]> => ipcRenderer.invoke("results:list"),
   clearResults: (): Promise<void> => ipcRenderer.invoke("results:clear"),
   copyResult: (id: string): Promise<void> =>

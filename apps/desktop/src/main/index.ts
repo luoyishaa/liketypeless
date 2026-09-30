@@ -43,7 +43,7 @@ let state: DesktopState = { phase: "starting", message: "正在启动本机服�
 const legacyDataPath = app.getPath("userData");
 app.setName("liketypeless");
 app.setPath("userData", join(app.getPath("appData"), "liketypeless"));
-if (!app.isPackaged && process.env.LIKETYPELESS_TEST_DATA_DIR) {
+if (process.env.LIKETYPELESS_TEST_DATA_DIR) {
   app.setPath("userData", process.env.LIKETYPELESS_TEST_DATA_DIR);
 }
 
@@ -216,6 +216,14 @@ function updateTray() {
   );
 }
 
+function prepareOptionalCleanup() {
+  if (settings.cleanupMode === "enhanced") {
+    void backend.request("/llm/prepare", {}).catch(() => {
+      // Basic offline cleanup remains usable; diagnostics show the optional state.
+    });
+  }
+}
+
 async function toggleRecording(fromHotkey: boolean) {
   if (busy) return state;
   busy = true;
@@ -249,7 +257,8 @@ async function toggleRecording(fromHotkey: boolean) {
       });
       publish({
         phase: delivery.status,
-        message: [delivery.reason, result.degradationReason]
+        message: [delivery.reason, result.degradationReason,
+          result.sttFallbackReason?.includes("未准备") ? null : result.sttFallbackReason]
           .filter(Boolean)
           .join(" "),
         elapsedMs: Math.round(performance.now() - started),
@@ -300,6 +309,7 @@ function registerIpc() {
     busy = true;
     try {
       await backend.restart();
+      prepareOptionalCleanup();
       publish({ phase: "ready", message: "本机服务已就绪。" });
     } finally {
       busy = false;
@@ -325,6 +335,7 @@ function registerIpc() {
       throw error;
     }
     updateTray();
+    prepareOptionalCleanup();
     return settings;
   });
   handle("models:status", () => backend.request<ModelStatus>("/models/status"));
@@ -340,6 +351,16 @@ function registerIpc() {
     return backend.request("/models/prepare", {
       sourcePath: selection.filePaths[0],
     });
+  });
+  handle("models:short:status", () => backend.request<ModelStatus>("/models/short/status"));
+  handle("models:short:prepare", () => backend.request("/models/short/prepare", {}));
+  handle("models:short:import", async () => {
+    const selection = await dialog.showOpenDialog(mainWindow!, {
+      title: "选择已下载的 SenseVoice GGUF 模型和便携运行程序所在文件夹",
+      properties: ["openDirectory"],
+    });
+    if (selection.canceled) return null;
+    return backend.request("/models/short/prepare", { sourcePath: selection.filePaths[0] });
   });
   handle("results:list", () => backend.request<RecentResult[]>("/results"));
   handle("results:clear", () => backend.request("/results/clear", {}));
@@ -405,6 +426,7 @@ else {
     );
     try {
       await backend.start();
+      prepareOptionalCleanup();
       publish(
         registered
           ? {

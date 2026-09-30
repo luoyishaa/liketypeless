@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import sys
@@ -12,6 +13,7 @@ from time import perf_counter
 from typing import Protocol
 
 from .config import settings
+from .sensevoice_bundle import SenseVoiceBundle
 
 
 class STTError(RuntimeError):
@@ -34,6 +36,7 @@ class TranscriptionResult:
     duration_seconds: float
     elapsed_ms: int
     segments: list[TranscriptSegment]
+    fallback_reason: str | None = None
 
 
 class SpeechToTextProvider(Protocol):
@@ -399,10 +402,104 @@ class LocalSenseVoiceProvider:
         self._process = None
 
 
+class RoutedSpeechProvider:
+    """Short verified GGUF clips; all other paths retain the proven Whisper provider."""
+
+    provider_name = "local-routed"
+    threshold_seconds = 4.0
+
+    def __init__(self, whisper: SpeechToTextProvider, bundle: SenseVoiceBundle):
+        self.whisper = whisper
+        self.bundle = bundle
+
+    def runtime_status(self):
+        runtime = self.whisper.runtime_status()
+        return {**runtime, "shortModelState": self.bundle.status()["state"],
+                "shortModelDirectory": str(self.bundle.directory),
+                "shortRouteThresholdSeconds": self.threshold_seconds}
+
+    def transcribe(self, file_path: Path, language: str | None = None) -> TranscriptionResult:
+        started_at = perf_counter()
+        try:
+            import soundfile as sf
+            info = sf.info(str(file_path))
+            duration = float(info.duration)
+        except Exception:
+            return self.whisper.transcribe(file_path, language=language)
+        if duration > self.threshold_seconds:
+            return self.whisper.transcribe(file_path, language=language)
+        if file_path.suffix.lower() != ".wav":
+            return self._fallback(file_path, language, started_at,
+                                  "短句录音格式不适用，已回退 Whisper。")
+        if self.bundle.status()["state"] != "ready":
+            return self._fallback(file_path, language, started_at, "短句优化模型未准备，已使用 Whisper。")
+
+        try:
+            model, executable = self.bundle.paths()
+            # The upstream Windows CLI uses narrow file arguments. Pass ASCII
+            # basenames from its Unicode working directory, including for audio.
+            with tempfile.NamedTemporaryFile(dir=model.parent, prefix="clip-", suffix=".wav",
+                                             delete=False) as staged:
+                staged_path = Path(staged.name)
+            try:
+                if info.samplerate == 16000 and info.channels == 1 and info.subtype == "PCM_16":
+                    shutil.copyfile(file_path, staged_path)
+                else:
+                    self._normalize_short_audio(file_path, staged_path, info.samplerate)
+                result = subprocess.run([str(executable), "-m", model.name, "-a", staged_path.name,
+                                         "--backend", "cpu"], cwd=str(model.parent), capture_output=True,
+                                        text=True, encoding="utf-8", errors="replace", timeout=15,
+                                        check=False)
+            finally:
+                staged_path.unlink(missing_ok=True)
+            if result.returncode != 0 or not result.stdout.strip():
+                raise STTError("便携识别程序未返回可用文字")
+            text = result.stdout.strip()
+            return TranscriptionResult(provider="local-sensevoice-gguf", model="SenseVoiceSmall-GGUF:q8",
+                                       text=text, language="zh", duration_seconds=duration,
+                                       elapsed_ms=round((perf_counter() - started_at) * 1000),
+                                       segments=[TranscriptSegment(start=0, end=duration, text=text)])
+        except Exception:
+            # This optimizer is optional; decoding, conversion and native failures
+            # must all preserve the base Whisper result.
+            return self._fallback(file_path, language, started_at, "短句优化识别失败，已回退 Whisper。")
+
+    @staticmethod
+    def _normalize_short_audio(source: Path, target: Path, sample_rate: int) -> None:
+        """Convert a short microphone fallback rate to CLI-compatible PCM16."""
+        import av
+        import numpy as np
+        import soundfile as sf
+
+        audio, _ = sf.read(str(source), dtype="int16", always_2d=True)
+        if audio.size == 0:
+            raise STTError("短句录音为空")
+        mono = np.rint(audio.astype(np.float32).mean(axis=1)).astype(np.int16)
+        frame = av.AudioFrame.from_ndarray(mono.reshape(1, -1), format="s16", layout="mono")
+        frame.sample_rate = sample_rate
+        resampler = av.AudioResampler(format="s16", layout="mono", rate=16000)
+        frames = resampler.resample(frame) + resampler.resample(None)
+        if not frames:
+            raise STTError("短句录音转换失败")
+        resampled = np.concatenate([output.to_ndarray().reshape(-1) for output in frames])
+        sf.write(str(target), resampled, 16000, subtype="PCM_16")
+
+    def _fallback(self, file_path: Path, language: str | None, started_at: float,
+                  reason: str) -> TranscriptionResult:
+        result = self.whisper.transcribe(file_path, language=language)
+        return replace(result, fallback_reason=reason,
+                       elapsed_ms=round((perf_counter() - started_at) * 1000))
+
+
+sensevoice_bundle = SenseVoiceBundle(settings.sensevoice_bundle_dir or settings.data_dir / "models" / "sensevoice")
+
+
 def create_stt_providers() -> dict[str, SpeechToTextProvider]:
+    whisper = LocalFasterWhisperProvider()
     providers: dict[str, SpeechToTextProvider] = {
-        LocalFasterWhisperProvider.provider_name: LocalFasterWhisperProvider(),
+        LocalFasterWhisperProvider.provider_name: whisper,
         LocalSenseVoiceProvider.provider_name: LocalSenseVoiceProvider(),
+        RoutedSpeechProvider.provider_name: RoutedSpeechProvider(whisper, sensevoice_bundle),
     }
     return providers
 

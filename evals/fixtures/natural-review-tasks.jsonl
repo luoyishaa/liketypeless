@@ -1,0 +1,30 @@
+{"case_id":"NR01","category":"date_time","cue":"用自己的话安排明天下午三点的会议"}
+{"case_id":"NR02","category":"date_time","cue":"说明下周二上午九点半要做的一件事"}
+{"case_id":"NR03","category":"date_time","cue":"说一段含有月底截止日期的待办"}
+{"case_id":"NR04","category":"date_time","cue":"说一段含有两个不同日期的计划"}
+{"case_id":"NR05","category":"date_time","cue":"说明一个从晚上八点持续到九点的安排"}
+{"case_id":"NR06","category":"date_time","cue":"用一句话说明后天而不是明天要完成的事"}
+{"case_id":"NR07","category":"number","cue":"口述一笔带小数的金额和用途"}
+{"case_id":"NR08","category":"number","cue":"说明一个百分比变化并指出是增加还是减少"}
+{"case_id":"NR09","category":"number","cue":"口述一个四位以上的数量和单位"}
+{"case_id":"NR10","category":"number","cue":"说出两个不同编号的任务并比较优先级"}
+{"case_id":"NR11","category":"number","cue":"说明一个包含零和小数点的测量值"}
+{"case_id":"NR12","category":"number","cue":"口述一个序号和一个与它不同的数量"}
+{"case_id":"NR13","category":"name","cue":"说一句包含两个人名的协作安排；可使用虚构姓名"}
+{"case_id":"NR14","category":"name","cue":"向一位老师或同事交代一件事；可使用虚构姓名"}
+{"case_id":"NR15","category":"name","cue":"说出一个地名和一个机构名；可使用虚构名称"}
+{"case_id":"NR16","category":"name","cue":"说明由甲负责而不是乙负责的任务；可使用虚构姓名"}
+{"case_id":"NR17","category":"name","cue":"说一段同时包含中文名字和英文名字的话"}
+{"case_id":"NR18","category":"mixed_terms","cue":"自然地说一句包含 API 和中文动作的工作安排"}
+{"case_id":"NR19","category":"mixed_terms","cue":"说一句包含 GitHub 和数字版本号的话"}
+{"case_id":"NR20","category":"mixed_terms","cue":"说一句包含 CPU 与 GPU 选择的判断"}
+{"case_id":"NR21","category":"mixed_terms","cue":"说一句包含 Python 和一个中文文件名的话"}
+{"case_id":"NR22","category":"mixed_terms","cue":"说一句包含两个英文技术术语的中文说明"}
+{"case_id":"NR23","category":"self_correction","cue":"先说一个时间再口头改成另一个时间"}
+{"case_id":"NR24","category":"self_correction","cue":"先说一个数字再用口头纠正语改成另一个数字"}
+{"case_id":"NR25","category":"self_correction","cue":"说一句话时自然地重复一个词然后继续"}
+{"case_id":"NR26","category":"self_correction","cue":"说到一半改变主意并明确说不做原来的事"}
+{"case_id":"NR27","category":"pause_structure","cue":"自然说明三项待办并在项目之间停顿"}
+{"case_id":"NR28","category":"pause_structure","cue":"口述一段先讲原因再讲结论的话"}
+{"case_id":"NR29","category":"pause_structure","cue":"说一段包含一句疑问和一句陈述的话"}
+{"case_id":"NR30","category":"pause_structure","cue":"持续口述十到十五秒并自然分段停顿"}

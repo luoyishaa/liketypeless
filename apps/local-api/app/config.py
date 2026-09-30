@@ -21,6 +21,7 @@ class AppSettings(BaseModel):
     stt_chunk_seconds: int = 90
     sensevoice_python: str = str(Path(__file__).resolve().parents[3] / ".venv-asr-py312" / "Scripts" / "python.exe")
     sensevoice_runner: str = str(Path(__file__).resolve().parents[1] / "scripts" / "sensevoice_runner.py")
+    sensevoice_bundle_dir: Path | None = None
     llm_num_predict: int = 220
     hf_endpoint: str = "https://huggingface.co"
 
@@ -54,6 +55,8 @@ settings = AppSettings(
         "LIKETYPELESS_SENSEVOICE_RUNNER",
         str(Path(__file__).resolve().parents[1] / "scripts" / "sensevoice_runner.py"),
     ),
+    sensevoice_bundle_dir=Path(os.environ["LIKETYPELESS_SENSEVOICE_BUNDLE_DIR"])
+    if os.getenv("LIKETYPELESS_SENSEVOICE_BUNDLE_DIR") else None,
     llm_num_predict=int(os.getenv("LIKETYPELESS_LLM_NUM_PREDICT", "220")),
     hf_endpoint=os.getenv("HF_ENDPOINT", "https://huggingface.co"),
 )

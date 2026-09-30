@@ -42,7 +42,7 @@ export class BackendProcess {
         LIKETYPELESS_SESSION_TOKEN: this.token,
         LIKETYPELESS_STT_MODEL_PATH: "",
         LIKETYPELESS_PARENT_PID: String(process.pid),
-        LIKETYPELESS_STT_PROVIDER: "local-faster-whisper",
+        LIKETYPELESS_STT_PROVIDER: "local-routed",
         LIKETYPELESS_STT_MODEL: "small",
         LIKETYPELESS_STT_BEAM_SIZE: "1",
         LIKETYPELESS_STT_CHUNK_SECONDS: "90",

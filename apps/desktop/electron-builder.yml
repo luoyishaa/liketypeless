@@ -1,5 +1,6 @@
 appId: com.liketypeless.desktop
 productName: liketypeless
+electronDist: ../../node_modules/electron/dist
 directories:
   output: release
 files:

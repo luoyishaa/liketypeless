@@ -48,6 +48,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--candidate", type=Path, required=True, help="Prepared source manifest with speaker and audio hashes")
     parser.add_argument("--exclude", type=Path, action="append", default=[], help="Previously used manifest; repeat as needed")
+    parser.add_argument("--exclude-id", action="append", default=[], help="Previously inspected recording ID; repeat as needed")
     parser.add_argument("--count", type=int, required=True)
     parser.add_argument("--max-reference-chars", type=int, help="Optional short-utterance stratum")
     parser.add_argument("--source-revision", required=True, help="Pinned publisher revision or archive SHA-256")
@@ -59,6 +60,7 @@ def main() -> None:
     if args.output.exists() or args.lock.exists():
         parser.error("Holdout is already frozen; use new output paths rather than replacing it")
     candidates = list(read_jsonl(args.candidate).values())
+    candidates = [row for row in candidates if row["id"] not in args.exclude_id]
     if args.max_reference_chars is not None:
         candidates = [row for row in candidates if 0 < len(normalize(row["reference"])) <= args.max_reference_chars]
     excluded = [row for path in args.exclude for row in read_jsonl(path).values()]
@@ -73,6 +75,7 @@ def main() -> None:
         "source_splits": sorted({f"{row['source']}:{row.get('split', 'unknown')}" for row in selected}),
         "manifest_sha256": portable_hash(selected),
         "excluded_manifest_sha256": portable_hash(excluded),
+        "excluded_ids": sorted(set(args.exclude_id)),
         "selection_seed": "20260924",
         "max_reference_chars": args.max_reference_chars,
     }

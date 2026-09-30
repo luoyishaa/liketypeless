@@ -51,6 +51,23 @@ class AsrApiBenchmarkTests(unittest.TestCase):
             self.assertEqual(report["timing_scope"], "in_process_product_stt_route")
             self.assertEqual(len(report["portable_manifest_sha256"]), 64)
 
+    def test_candidate_provider_name_is_sent_explicitly_to_product_route(self):
+        from benchmark_asr_api import measure
+        from app.stt_service import TranscriptionResult
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            audio = root / "one.wav"
+            audio.write_bytes(b"fixture")
+            manifest = root / "samples.jsonl"
+            manifest.write_text(json.dumps({"id": "one", "audio_path": str(audio), "reference": "你好"},
+                                           ensure_ascii=False) + "\n", encoding="utf-8")
+            with patch("app.main.get_stt_provider") as provider:
+                provider.return_value.transcribe.return_value = TranscriptionResult(
+                    provider="local-sensevoice-gguf", model="q8", text="你好", language="zh",
+                    duration_seconds=2, elapsed_ms=100, segments=[])
+                measure(manifest, provider="local-routed")
+            self.assertEqual(provider.call_args.args, ("local-routed",))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,7 @@
 
 本目录把产品的三个能力分开测量：中文语音识别、保守整理、中译英。`reports/` 中的数值来自真实推理；`fixtures/` 是人工编写的回归用例，不是公开语音集，也不能代替独立人工审阅。
 
-最新结果：[错误分型与风险发现](reports/2026-09-24-diagnostic-findings.md)、[三种 ASR 配置的重复对照](reports/2026-09-24-asr-comparison.md)。候选的局部质量优势不代表其长录音能力、进程稳定性或翻译忠实度已通过。
+最新结果：[v1 候选路由及同二进制封装后台配对](manifests/v1-route-candidate.md)、[错误分型与风险发现](reports/2026-09-24-diagnostic-findings.md)、[三种 ASR 配置的重复对照](reports/2026-09-24-asr-comparison.md)。候选的局部质量优势不代表完整桌面输入、独立安装环境或翻译忠实度已通过。
 
 ## 当前数据与边界
 
@@ -33,6 +33,8 @@
 
 `benchmark_asr_api.py` 将同一份已准备的音频清单逐条交给产品的认证 `/stt/transcribe` 接口，保存原始转写、音频校验值、整体接口请求 P50/P95 与原始 CER。需显式给出已验证的本地模型目录；脚本隔离会话数据，不暖机。它测的是音频文件至接口响应，不是麦克风到输入框。
 
+封装后台的配对实验用 `benchmark_packaged_asr.py` 对相同清单分别指定 `--provider local-faster-whisper` 与 `--provider local-routed --short-bundle-dir <已校验目录>`；后者仍通过认证 HTTP 接口执行实际路由，不以离线重组预测代替。然后用 `compare_asr_route.py --candidate-is-routed --threshold-seconds 4` 核对每条音频指纹、实际提供者和配对收益；`publish_route_summary.py` 要求两模式及两分层使用同一后台 SHA-256，只输出不含私人音频路径和逐条原文的汇总。复现必须从 [冻结清单与来源](manifests/v1-holdout.md)准备本地音频，不能用旧 Common Voice 短词诊断集替换。
+
 ```powershell
 .\.venv-release\Scripts\python.exe evals/scripts/benchmark_asr_api.py --manifest evals/local/public-asr-manifest.jsonl --model-path "$env:APPDATA\liketypeless\models\small" --output evals/local/product-asr-api.json
 ```
@@ -51,6 +53,17 @@ Copy-Item evals/fixtures/desktop-trials-template.csv evals/local/desktop-trials.
 ```
 
 汇总要求三个目标应用各至少 20 条才判断桌面发布门槛；直接输入比例至少 `59/60`，误入其他窗口与不可恢复丢失均为零。样本不足时 `release_gate.passed=null`，不能解释为通过。CSV 是观察记录，不是自动化粘贴确认；原始口述文本和输入结果仅放在忽略的 `evals/local/`。
+
+自然口述另设 30 条固定任务提示，覆盖日期、数字、人名、中英术语、口头改说和停顿。提示不是预设答案；录音后逐条填写实际口述参考文本、原始转写、基础/增强输出、人工修正次数与关键事实变化。`summarize_natural_review.py` 只在 30 条记录全部填写时给出质量指标，缺失时保持 `null`，不会用模型自评或离线回归用例补齐。
+
+```powershell
+.\.venv-release\Scripts\python.exe evals/scripts/make_natural_review_sheet.py --output evals/local/natural-review.csv
+.\.venv-release\Scripts\python.exe evals/scripts/summarize_natural_review.py --review evals/local/natural-review.csv --output evals/local/natural-review-summary.json
+```
+
+记录需填写机器与应用版本、实际 ASR 模型和冷/暖状态；`enhanced_provider` 必须来自响应中的实际执行者，回退不得记为模型整理成功。参考文本以录音内容为准，`basic_correction_edits` 和 `enhanced_correction_edits` 是把各自输出改到预期可用文本的操作次数；日期、数值、人名、否定被改变时，单独将对应 `*_fact_changed` 记为 `1`。私人音频和逐条审阅表留在忽略目录，仅公开汇总及方法。
+
+填好 `raw_transcript` 后，`natural_review_modes.py` 可导出固定的 30 条文字清单，交给 `benchmark_cleanup_modes.py --enhanced --prewarm-enhanced` 同输入运行两种整理，再以 `--modes-report` 回填基础/增强文本与实际提供者；人工评分列保持空白。完整命令见 [Windows 交互验证规程](../docs/v1-validation-protocol.md)。这一步是开发机接口层的配对实验，不是安装包的桌面速度测试。
 
 ## 复现
 
@@ -85,7 +98,7 @@ python evals/scripts/evaluate.py --manifest evals/local/public-asr-manifest.json
 
 ## CI 与版本门槛
 
-CI 每次运行产品真实的离线保守整理规则，比较固定 28 条回归用例；修改模型、提示词或核心推理文件时，还要求在该变更中更新同一份公开 manifest 的候选报告，并与基线逐项比较。GitHub Runner 不下载数 GB 数据，也不假装运行本机 Ollama；真实语音及翻译报告由本地跑完后作为可审查证据提交。候选结果若缺失、样本不一致、自动整理安全率恶化，检查失败。
+CI 每次运行产品真实的离线保守整理规则，比较固定 28 条回归用例；修改模型、提示词或核心推理文件时，还要求在该变更中更新同一份公开 manifest 的候选报告，并与基线逐项比较。GitHub Runner 不下载数 GB 数据，也不假装运行本机 Ollama；真实语音及翻译报告由本地跑完后作为可审查证据提交。候选结果若缺失、样本不一致、自动整理安全率恶化，检查失败。相同预测也是合法的零变化，不应仅因预测哈希相同而判失败；报告文件仍须属于本次变更。
 
 ## 诊断、风险审阅与重复对照
 

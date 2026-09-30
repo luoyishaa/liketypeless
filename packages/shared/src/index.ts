@@ -10,6 +10,8 @@ export type StructureResponse = {
   model: string;
   originalText: string;
   structuredText: string;
+  degraded: boolean;
+  degradationReason: string | null;
 };
 
 export type TranslationResponse = {
@@ -23,10 +25,13 @@ export type HealthResponse = {
   ollamaReachable: boolean | null;
   defaultModel: string;
   modelReady: boolean;
+  enhancedModelState: "unavailable" | "loading" | "ready";
   runtime: {
     device: string | null;
     computeType: string | null;
     fallbackReason: string | null;
+    shortModelState?: "missing" | "downloading" | "verifying" | "ready" | "error";
+    shortRouteThresholdSeconds?: number;
   };
 };
 
@@ -83,6 +88,7 @@ export type VoiceFinishResponse = {
   structuredText: string;
   sttProvider: string;
   sttModel: string;
+  sttFallbackReason: string | null;
   llmModel: string;
   recordingStopElapsedMs: number;
   sttElapsedMs: number;
@@ -130,6 +136,7 @@ export type VoiceTranscribeResponse = {
   transcript: string;
   sttProvider: string;
   sttModel: string;
+  sttFallbackReason: string | null;
   recordingStopElapsedMs: number;
   sttElapsedMs: number;
   totalElapsedMs: number;
@@ -140,5 +147,6 @@ export type VoicePreviewResponse = {
   transcript: string;
   sttProvider: string;
   sttModel: string;
+  sttFallbackReason: string | null;
   sttElapsedMs: number;
 };

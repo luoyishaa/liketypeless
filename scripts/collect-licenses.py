@@ -37,6 +37,20 @@ for name in ("react", "react-dom", "scheduler", "electron"):
             shutil.copyfile(source, target / source.name)
             retained.append(str((target / source.name).relative_to(destination)))
     inventory.append({"name": name, "version": package["version"], "license": package.get("license"), "files": retained})
+runtime_license = destination / "funasr-runtime" / "LICENSE"
+runtime_license.parent.mkdir(exist_ok=True)
+shutil.copyfile(root / "licenses" / "funasr-runtime-MIT.txt", runtime_license)
+inventory.append({"name": "FunASR llama.cpp Windows x64 CPU runtime", "version": "runtime-llamacpp-v0.2.6",
+                  "license": "MIT", "distribution_mode": "downloaded from official release on user request",
+                  "source": "https://github.com/modelscope/FunASR/releases/tag/runtime-llamacpp-v0.2.6",
+                  "files": [str(runtime_license.relative_to(destination))]})
+inventory.append({"name": "SenseVoiceSmall-GGUF q8", "version": "90c1c61912018b70ada0fcc024ea24aca62f2e63",
+                  "license": "GGUF repository tags Apache-2.0; original SenseVoiceSmall is tagged model-license. Model terms require separate review.",
+                  "distribution_mode": "downloaded from official model repository on user request",
+                  "source": "https://huggingface.co/FunAudioLLM/SenseVoiceSmall-GGUF",
+                  "original_model": "https://huggingface.co/FunAudioLLM/SenseVoiceSmall",
+                  "model_terms": "https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE",
+                  "files": []})
 (destination / "inventory.json").write_text(json.dumps(inventory, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 (destination / "README.txt").write_text(
     "Third-party dependency inventory for this candidate build. Python entries include the locked build tools, not only shipped runtime modules. "

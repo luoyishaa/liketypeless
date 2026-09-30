@@ -11,10 +11,10 @@ from typing import Literal
 
 from .audio_recorder import AudioRecorder, AudioRecorderError
 from .config import settings
-from .ollama_client import is_ollama_reachable
+from .ollama_client import is_ollama_reachable, model_readiness
 from .structure_service import structure_text_hybrid
 from .text_structure import structure_text_conservatively, PROVIDER_NAME
-from .stt_service import STTError, get_stt_provider, stt_provider
+from .stt_service import STTError, get_stt_provider, stt_provider, sensevoice_bundle
 from .translation_service import translate_chinese_to_english
 from .model_manager import ModelManager
 from .result_store import ResultStore
@@ -30,6 +30,13 @@ class StructureResponse(BaseModel):
     model: str
     originalText: str
     structuredText: str
+    degraded: bool = False
+    degradationReason: str | None = None
+
+
+class EnhancedModelStatus(BaseModel):
+    state: Literal["unavailable", "loading", "ready"]
+    model: str
 
 
 class TranslationRequest(BaseModel):
@@ -47,6 +54,7 @@ class HealthResponse(BaseModel):
     ollamaReachable: bool | None
     defaultModel: str
     modelReady: bool
+    enhancedModelState: Literal["unavailable", "loading", "ready"]
     runtime: dict
 
 
@@ -96,6 +104,7 @@ class TranscribeResponse(BaseModel):
     language: str
     durationSeconds: float
     sttElapsedMs: int
+    sttFallbackReason: str | None = None
     segments: list[TranscriptSegmentResponse]
 
 
@@ -111,6 +120,7 @@ class VoiceFinishResponse(BaseModel):
     structuredText: str
     sttProvider: str
     sttModel: str
+    sttFallbackReason: str | None = None
     llmModel: str
     recordingStopElapsedMs: int
     sttElapsedMs: int
@@ -131,6 +141,7 @@ class VoiceTranscribeResponse(BaseModel):
     transcript: str
     sttProvider: str
     sttModel: str
+    sttFallbackReason: str | None = None
     recordingStopElapsedMs: int
     sttElapsedMs: int
     totalElapsedMs: int
@@ -141,6 +152,7 @@ class VoicePreviewResponse(BaseModel):
     transcript: str
     sttProvider: str
     sttModel: str
+    sttFallbackReason: str | None = None
     sttElapsedMs: int
 
 
@@ -180,6 +192,7 @@ def health() -> HealthResponse:
         ollamaReachable=None,
         defaultModel=settings.default_model,
         modelReady=models.status()["state"] == "ready",
+        enhancedModelState=model_readiness.status(settings.ollama_base_url, settings.default_model)["state"],
         runtime=stt_provider.runtime_status(),
     )
 
@@ -233,6 +246,7 @@ def transcribe_audio(request: TranscribeRequest) -> TranscribeResponse:
         language=result.language,
         durationSeconds=result.duration_seconds,
         sttElapsedMs=result.elapsed_ms,
+        sttFallbackReason=result.fallback_reason,
         segments=[TranscriptSegmentResponse(start=segment.start, end=segment.end, text=segment.text) for segment in result.segments],
     )
 
@@ -263,6 +277,7 @@ def transcribe_voice_recording() -> VoiceTranscribeResponse:
         transcript=transcript.text,
         sttProvider=transcript.provider,
         sttModel=transcript.model,
+        sttFallbackReason=transcript.fallback_reason,
         recordingStopElapsedMs=recording_stop_elapsed_ms,
         sttElapsedMs=transcript.elapsed_ms,
         totalElapsedMs=round((perf_counter() - total_started_at) * 1000),
@@ -291,6 +306,7 @@ def preview_voice_recording() -> VoicePreviewResponse:
         transcript=transcript.text,
         sttProvider=transcript.provider,
         sttModel=transcript.model,
+        sttFallbackReason=transcript.fallback_reason,
         sttElapsedMs=transcript.elapsed_ms,
     )
 
@@ -325,12 +341,14 @@ def process_recording(identifier, recording, request, total_started_at, recordin
     structured_text = ""
     structure_elapsed_ms = 0
     structure_model = "none"
+    degradation_reason = None
     if transcript.text:
         structure_started_at = perf_counter()
         if request and request.cleanupMode == "enhanced":
-            structure_result = structure_text_hybrid(transcript.text, timeout=4)
+            structure_result = structure_text_hybrid(transcript.text, timeout=2)
             structured_text = structure_result.text
             structure_model = structure_result.provider
+            degradation_reason = structure_result.degradation_reason
         else:
             structured_text = structure_text_conservatively(transcript.text)
             structure_model = PROVIDER_NAME
@@ -343,7 +361,7 @@ def process_recording(identifier, recording, request, total_started_at, recordin
     return VoiceFinishResponse(
         resultId=identifier,
         degraded=degraded,
-        degradationReason="智能整理不可用或未通过安全检查，已使用基础整理。" if degraded else None,
+        degradationReason=degradation_reason if degraded else None,
         audioFilePath=audio_file_path,
         durationSeconds=float(recording["durationSeconds"]),
         audioRms=float(recording["audioRms"]),
@@ -352,6 +370,7 @@ def process_recording(identifier, recording, request, total_started_at, recordin
         structuredText=structured_text,
         sttProvider=transcript.provider,
         sttModel=transcript.model,
+        sttFallbackReason=transcript.fallback_reason,
         llmModel=structure_model,
         recordingStopElapsedMs=recording_stop_elapsed_ms,
         sttElapsedMs=transcript.elapsed_ms,
@@ -365,9 +384,29 @@ class ModelPrepareRequest(BaseModel):
     endpoint: Literal["https://huggingface.co", "https://hf-mirror.com"] = "https://huggingface.co"
 
 
+class ShortModelPrepareRequest(BaseModel):
+    sourcePath: str | None = None
+
+
 @app.get("/models/status")
 def model_status():
     return models.status()
+
+
+@app.get("/models/short/status")
+def short_model_status():
+    return sensevoice_bundle.status()
+
+
+@app.post("/models/short/prepare")
+def prepare_short_model(request: ShortModelPrepareRequest):
+    if recorder.status()["isRecording"]:
+        raise HTTPException(status_code=409, detail="请先结束录音。")
+    try:
+        sensevoice_bundle.prepare(Path(request.sourcePath) if request.sourcePath else None)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return sensevoice_bundle.status()
 
 
 @app.post("/models/prepare")
@@ -414,10 +453,23 @@ def retry_result(identifier: str, request: VoiceFinishRequest):
 def structure_text(request: StructureRequest) -> StructureResponse:
     del request.model
     if request.cleanupMode == "enhanced":
-        result = structure_text_hybrid(request.text, timeout=4)
-        return StructureResponse(model=result.provider, originalText=request.text, structuredText=result.text)
+        result = structure_text_hybrid(request.text, timeout=2)
+        return StructureResponse(model=result.provider, originalText=request.text, structuredText=result.text,
+                                 degraded=result.degradation_reason is not None,
+                                 degradationReason=result.degradation_reason)
     return StructureResponse(model=PROVIDER_NAME, originalText=request.text,
                              structuredText=structure_text_conservatively(request.text))
+
+
+@app.get("/llm/status", response_model=EnhancedModelStatus)
+def enhanced_model_status() -> EnhancedModelStatus:
+    return EnhancedModelStatus(**model_readiness.status(settings.ollama_base_url, settings.default_model))
+
+
+@app.post("/llm/prepare", response_model=EnhancedModelStatus)
+def prepare_enhanced_model() -> EnhancedModelStatus:
+    model_readiness.ready_or_prepare(settings.ollama_base_url, settings.default_model)
+    return enhanced_model_status()
 
 
 @app.post("/llm/translate", response_model=TranslationResponse)

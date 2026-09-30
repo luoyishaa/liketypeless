@@ -1,16 +1,21 @@
 import { _electron as electron } from "playwright";
-import { resolve } from "node:path";
+import { resolve, join } from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 
-// This smoke test prepares the real application's user profile for manual acceptance.
+// The packaged app must work from a temporary profile without modifying user data.
 const restarts = Number(process.env.LIKETYPELESS_TEST_APP_RESTARTS || 1);
+const profile = await mkdtemp(join(tmpdir(), "liketypeless-packaged-profile-"));
+try {
 for (let index = 0; index < restarts; index++) {
   const instance = await electron.launch({
     executablePath: resolve(
       "apps/desktop/release/win-unpacked/liketypeless.exe",
     ),
     args: [],
-    env: { ...process.env, LIKETYPELESS_TEST_DATA_DIR: "hide-window-only" },
+    env: { ...process.env, PATH: join(process.env.SystemRoot, "System32"),
+      LIKETYPELESS_TEST_DATA_DIR: profile },
   });
   try {
     const page = await instance.firstWindow();
@@ -20,6 +25,7 @@ for (let index = 0; index < restarts; index++) {
       .getByText("本机服务在线", { exact: true })
       .waitFor({ timeout: 60000 });
     assert.equal(await instance.evaluate(({ app }) => app.isPackaged), true);
+    assert.equal(await instance.evaluate(({ app }) => app.getPath("userData")), profile);
     // Existing models are re-verified asynchronously at startup; do not race that
     // state by trying to import while the button is legitimately disabled.
     let modelStatus;
@@ -69,4 +75,7 @@ for (let index = 0; index < restarts; index++) {
   } finally {
     await instance.close();
   }
+}
+} finally {
+  await rm(profile, { recursive: true, force: true });
 }

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "sample_count": 100,
+  "speaker_count": 11,
+  "source_revision": "bbe295d530192a4cd41644b711c9aecd087df653",
+  "source_splits": [
+    "aishell-1:train"
+  ],
+  "manifest_sha256": "4e0c95cac242bfcdfc2198d1b79d5605b5e27229aef004fd8036c9fd09009b96",
+  "excluded_manifest_sha256": "99d9d1b5f2402507dd304061535d1adaf98937d00a8076623020e9d818bec1ed",
+  "excluded_ids": [
+    "aishell-1:BAC009S0012W0228"
+  ],
+  "selection_seed": "20260924",
+  "max_reference_chars": 8
+}

@@ -2,7 +2,7 @@
 
 Windows 11 x64 本地中文语音输入工具。按快捷键说话，结束后识别、简单整理，先保存结果，再尝试输入到原窗口。
 
-当前版本：**v0.1.0-rc.2（Windows x64 发布候选版）**。构建信息、已完成的测试和待验证项见 [版本技术状态](docs/v0.1-release-status.md)与 [验证矩阵](docs/v0.1-acceptance.md)。
+当前版本：**v0.1.0-rc.3（Windows 11 x64 发布候选版）**。构建、同二进制识别评测和未通过项见 [候选版技术状态](docs/v1-candidate-status.md)；实际输入记录方法见 [Windows 交互验证规程](docs/v1-validation-protocol.md)。旧版记录保留在 [rc.2 技术状态](docs/v0.1-release-status.md)。
 
 ## 给使用者
 

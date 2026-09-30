@@ -54,7 +54,7 @@ class DiagnosticsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "do not match"):
                 compare_experiments(root / "base.jsonl", root / "base", root / "candidate", root / "candidate.jsonl")
 
-    def test_evidence_gate_rejects_missing_or_stale_candidate(self):
+    def test_evidence_gate_requires_changed_report_but_accepts_zero_delta(self):
         with tempfile.TemporaryDirectory() as directory:
             base, candidate = Path(directory) / "base.json", Path(directory) / "candidate.json"
             with self.assertRaises(SystemExit):
@@ -63,8 +63,9 @@ class DiagnosticsTests(unittest.TestCase):
             report = evaluate(sample, {"a": {"asr_text": "你好", "stt_ms": 1, "end_to_end_ms": 1}})
             base.write_text(json.dumps(report), encoding="utf-8")
             candidate.write_text(json.dumps(report), encoding="utf-8")
-            with redirect_stdout(io.StringIO()), self.assertRaisesRegex(SystemExit, "rerun"):
+            with redirect_stdout(io.StringIO()) as output:
                 require_comparison(base, candidate, {candidate.as_posix()}, "test")
+            self.assertIn("PASS", output.getvalue())
 
     def test_paired_bootstrap_preserves_speaker_clusters(self):
         samples = {str(i): {"id": str(i), "reference": "你好", "speaker": str(i // 2), "source": "test"} for i in range(24)}

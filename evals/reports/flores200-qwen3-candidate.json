@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "manifest_sha256": "5c1db39d6608329ea6de1445270bcedb6b4b503ae7a876e15fbe48f8d649bf5d",
-  "prediction_sha256": "fa017e73a155fa23eda259216b4580f4043855d5c6d416d2a4e7e1635ffd7a7c",
+  "prediction_sha256": "f6668f51cae04ecae3a2cb83e47e965f8c64ef6864dbc92479c076ff382c9215",
   "sample_count": 100,
   "overall": {
     "samples": 100,
@@ -14,8 +14,8 @@
       "human_faithfulness_mean_1_to_5": null
     },
     "latency_ms": {
-      "p50": 511.866,
-      "p95": 862.036,
+      "p50": 498.495,
+      "p95": 886.396,
       "samples": 100
     },
     "asr_real_time_factor": null
@@ -32,8 +32,8 @@
         "human_faithfulness_mean_1_to_5": null
       },
       "latency_ms": {
-        "p50": 511.866,
-        "p95": 862.036,
+        "p50": 498.495,
+        "p95": 886.396,
         "samples": 100
       },
       "asr_real_time_factor": null
@@ -52,7 +52,7 @@
   },
   "translation": {
     "samples": 100,
-    "chrf_plus_plus": 56.7685,
+    "chrf_plus_plus": 56.7675,
     "automatic_checked_samples": 0,
     "automatic_violation_rate": null,
     "automatic_violation_ids": [],

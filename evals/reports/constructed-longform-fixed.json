@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "manifest_sha256": "f0edc99a465a68f82f6974b36e4e13cdb1101d759b1dbcf387df4510898dc21c",
-  "prediction_sha256": "1e86705c6e631338076e46725237866ca121468a11220c7cc237a436ea54082b",
+  "prediction_sha256": "f385b3804a96edd2dff4acfbcf00a2ab91975bb2410be374e77b45f95904cce7",
   "sample_count": 10,
   "overall": {
     "samples": 10,
@@ -14,11 +14,11 @@
       "human_faithfulness_mean_1_to_5": null
     },
     "latency_ms": {
-      "p50": 2292.177,
-      "p95": 5056.639,
+      "p50": 2322.896,
+      "p95": 7205.882,
       "samples": 10
     },
-    "asr_real_time_factor": 0.0221
+    "asr_real_time_factor": 0.027071
   },
   "by_source": {
     "constructed-longform": {
@@ -32,11 +32,11 @@
         "human_faithfulness_mean_1_to_5": null
       },
       "latency_ms": {
-        "p50": 2292.177,
-        "p95": 5056.639,
+        "p50": 2322.896,
+        "p95": 7205.882,
         "samples": 10
       },
-      "asr_real_time_factor": 0.0221
+      "asr_real_time_factor": 0.027071
     }
   },
   "by_duration": {
@@ -51,11 +51,11 @@
         "human_faithfulness_mean_1_to_5": null
       },
       "latency_ms": {
-        "p50": 2292.177,
-        "p95": 5056.639,
+        "p50": 2322.896,
+        "p95": 7205.882,
         "samples": 10
       },
-      "asr_real_time_factor": 0.0221
+      "asr_real_time_factor": 0.027071
     }
   },
   "by_reference_length": {
@@ -70,11 +70,11 @@
         "human_faithfulness_mean_1_to_5": null
       },
       "latency_ms": {
-        "p50": 2292.177,
-        "p95": 5056.639,
+        "p50": 2322.896,
+        "p95": 7205.882,
         "samples": 10
       },
-      "asr_real_time_factor": 0.0221
+      "asr_real_time_factor": 0.027071
     }
   },
   "safety": {

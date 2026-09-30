@@ -42,6 +42,7 @@ function App() {
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [model, setModel] = useState<ModelStatus | null>(null);
+  const [shortModel, setShortModel] = useState<ModelStatus | null>(null);
   const [state, setState] = useState<DesktopState>({
     phase: "starting",
     message: "正在启动本机服务…",
@@ -56,16 +57,20 @@ function App() {
     working || state.phase === "recording" || state.phase === "processing";
   const modelBusy =
     model?.state === "downloading" || model?.state === "verifying";
+  const shortModelBusy =
+    shortModel?.state === "downloading" || shortModel?.state === "verifying";
 
   async function refresh() {
-    const [nextHealth, nextModel, nextResults, nextState] = await Promise.all([
+    const [nextHealth, nextModel, nextShortModel, nextResults, nextState] = await Promise.all([
       api.health(),
       api.modelStatus(),
+      api.shortModelStatus(),
       api.results(),
       api.state(),
     ]);
     setHealth(nextHealth);
     setModel(nextModel);
+    setShortModel(nextShortModel);
     setResults(nextResults);
     setState(nextState);
   }
@@ -522,6 +527,36 @@ function App() {
               </button>
             </section>
             <section className="card">
+              <h2>短句识别优化（可选）</h2>
+              <p>
+                额外准备约 259 MB 的 SenseVoice 模型与便携运行程序。准备完成后，
+                4 秒以内的录音自动尝试它；较长录音仍用 Whisper。候选不可用时自动回退，
+                不影响基础离线输入。短句可能更准确，也可能比 GPU 上的 Whisper 更慢。
+              </p>
+              <p>
+                当前状态：{shortModel?.state === "ready" ? "已校验，可离线使用" :
+                  shortModelBusy ? "正在准备" : "未准备，继续使用 Whisper"}
+              </p>
+              {shortModelBusy && (
+                <>
+                  <progress max={shortModel?.totalBytes || 1} value={shortModel?.downloadedBytes || 0} />
+                  <small>{Math.round((shortModel?.downloadedBytes || 0) / 1000000)} / {Math.round((shortModel?.totalBytes || 0) / 1000000)} MB</small>
+                </>
+              )}
+              {shortModel?.error && <p role="alert" className="inline-error">{shortModel.error}</p>}
+              {shortModel?.state !== "ready" && (
+                <div className="controls">
+                  <button disabled={locked || shortModelBusy} onClick={() => void act(() => api.prepareShortModel())}>
+                    从官方来源准备
+                  </button>
+                  <button className="secondary" disabled={locked || shortModelBusy}
+                    onClick={() => void act(() => api.importShortModel())}>
+                    导入已有文件
+                  </button>
+                </div>
+              )}
+            </section>
+            <section className="card">
               <h2>记录与隐私</h2>
               <p>
                 最近 50 条文字保存在本机。成功处理的录音会删除；失败录音最多保留
@@ -550,7 +585,9 @@ function App() {
               <h2>运行状态</h2>
               <dl>
                 <dt>识别模型</dt>
-                <dd>Whisper small · beam 1</dd>
+                <dd>Whisper small · beam 1；4 秒以内可选 SenseVoice</dd>
+                <dt>短句模型</dt>
+                <dd>{shortModel?.state === "ready" ? "SenseVoice GGUF 已校验" : "未就绪，短句回退 Whisper"}</dd>
                 <dt>当前计算设备</dt>
                 <dd>{health?.runtime.device || "首次识别后显示"}</dd>
                 <dt>基础输入</dt>
@@ -562,7 +599,11 @@ function App() {
                 <dt>智能整理</dt>
                 <dd>
                   {settings?.cleanupMode === "enhanced"
-                    ? "已开启（请求时检查服务）"
+                    ? health?.enhancedModelState === "ready"
+                      ? "已就绪"
+                      : health?.enhancedModelState === "loading"
+                        ? "正在准备；此时先用基础整理"
+                        : "暂不可用；此时先用基础整理"
                     : "未开启"}
                 </dd>
               </dl>

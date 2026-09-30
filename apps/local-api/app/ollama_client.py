@@ -1,4 +1,6 @@
 import json
+import threading
+from time import monotonic
 import urllib.error
 import urllib.request
 from typing import Any
@@ -8,6 +10,72 @@ from .config import settings
 
 class OllamaError(RuntimeError):
     pass
+
+
+class ModelReadiness:
+    """Keep slow model loading off the voice-input request path."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._key: tuple[str, str] | None = None
+        self._state = "unavailable"
+        self._ready_until = 0.0
+        self._retry_after = 0.0
+
+    def ready_or_prepare(self, base_url: str, model: str) -> bool:
+        key = (base_url, model)
+        with self._lock:
+            if key != self._key:
+                self._key = key
+                self._state = "unavailable"
+                self._ready_until = 0.0
+                self._retry_after = 0.0
+            if self._state == "ready" and monotonic() < self._ready_until:
+                return True
+            if self._state == "loading" or monotonic() < self._retry_after:
+                return False
+            self._state = "loading"
+        threading.Thread(target=self._prewarm, args=(key,), daemon=True, name="liketypeless-ollama-prewarm").start()
+        return False
+
+    def _prewarm(self, key: tuple[str, str]) -> None:
+        base_url, model = key
+        request = urllib.request.Request(
+            f"{base_url}/api/generate",
+            data=json.dumps({"model": model, "stream": False, "keep_alive": "5m"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                if response.status != 200:
+                    raise OllamaError(f"Ollama preload failed with HTTP {response.status}")
+                response.read()
+        except Exception:
+            with self._lock:
+                if self._key == key:
+                    self._state = "unavailable"
+                    self._retry_after = monotonic() + 15
+            return
+        with self._lock:
+            if self._key == key:
+                self._state = "ready"
+                self._ready_until = monotonic() + 240
+
+    def mark_unavailable(self) -> None:
+        with self._lock:
+            self._state = "unavailable"
+            self._retry_after = monotonic() + 15
+
+    def status(self, base_url: str, model: str) -> dict[str, str]:
+        with self._lock:
+            state = self._state if self._key == (base_url, model) else "unavailable"
+            if state == "ready" and monotonic() >= self._ready_until:
+                state = "unavailable"
+            return {"state": state, "model": model}
+
+
+model_readiness = ModelReadiness()
 
 
 def is_ollama_reachable() -> bool:
@@ -60,6 +128,7 @@ def generate_chat_text(model: str, system_prompt: str, user_text: str, timeout: 
         ],
         "stream": False,
         "think": False,
+        "keep_alive": "5m",
         "options": {
             "temperature": 0,
             "top_p": 0.8,

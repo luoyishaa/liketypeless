@@ -23,7 +23,8 @@ from evaluate import edit_distance, normalize, percentile, ratio, read_jsonl  # 
 from build_holdout import portable_hash  # noqa: E402
 
 
-def measure(manifest_path: Path, model_path: Path | None = None) -> dict:
+def measure(manifest_path: Path, model_path: Path | None = None, *, provider: str | None = None,
+            short_bundle_dir: Path | None = None) -> dict:
     samples = list(read_jsonl(manifest_path).values())
     if not samples:
         raise ValueError("Manifest is empty")
@@ -41,6 +42,15 @@ def measure(manifest_path: Path, model_path: Path | None = None) -> dict:
         stack.enter_context(patch.dict(os.environ, evaluation_env))
         from app.main import app  # noqa: E402
         from app.config import settings  # noqa: E402
+        from app.stt_service import get_stt_provider  # noqa: E402
+        if short_bundle_dir is not None:
+            from app.sensevoice_bundle import SenseVoiceBundle  # noqa: E402
+            from app.stt_service import RoutedSpeechProvider, get_stt_provider, stt_providers  # noqa: E402
+            bundle = SenseVoiceBundle(short_bundle_dir.resolve())
+            if bundle.status()["state"] != "ready":
+                raise ValueError("The optional SenseVoice bundle must pass pinned SHA-256 verification")
+            stack.enter_context(patch.dict(stt_providers, {RoutedSpeechProvider.provider_name:
+                                      RoutedSpeechProvider(get_stt_provider("local-faster-whisper"), bundle)}))
 
         # In-process callers may already have imported the application. The
         # benchmark still uses a fresh credential for every invocation.
@@ -51,6 +61,8 @@ def measure(manifest_path: Path, model_path: Path | None = None) -> dict:
             "python_version": platform.python_version(),
             "platform": platform.platform(),
             "stt_provider": settings.stt_provider,
+            "requested_provider": provider or settings.stt_provider,
+            "short_bundle_dir": str(short_bundle_dir.resolve()) if short_bundle_dir else None,
             "stt_model": settings.stt_model,
             "model_path": settings.stt_model_path,
             "device_setting": settings.stt_device,
@@ -62,7 +74,7 @@ def measure(manifest_path: Path, model_path: Path | None = None) -> dict:
                 audio = Path(sample["audio_path"])
                 started = perf_counter()
                 response = client.post("/stt/transcribe", json={
-                    "filePath": str(audio), "language": "zh",
+                    "filePath": str(audio), "language": "zh", "provider": provider,
                 })
                 request_ms = round((perf_counter() - started) * 1000, 3)
                 response.raise_for_status()
@@ -71,9 +83,11 @@ def measure(manifest_path: Path, model_path: Path | None = None) -> dict:
                     "id": sample["id"], "audio_sha256": hashlib.sha256(audio.read_bytes()).hexdigest(),
                     "asr_text": result["text"], "provider": result["provider"],
                     "model": result["model"], "stt_ms": result["sttElapsedMs"],
+                    "stt_fallback_reason": result.get("sttFallbackReason"),
                     "request_ms": request_ms,
                 })
-            runtime["actual_stt_runtime"] = client.get("/health").json()["runtime"]
+            selected = get_stt_provider(provider)
+            runtime["actual_stt_runtime"] = selected.runtime_status()
 
     reference_chars = sum(len(normalize(sample["reference"])) for sample in samples)
     errors = sum(edit_distance(normalize(sample["reference"]), normalize(row["asr_text"]))
@@ -108,11 +122,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--model-path", type=Path, required=True, help="Verified local faster-whisper model directory")
+    parser.add_argument("--provider", choices=("local-faster-whisper", "local-routed"))
+    parser.add_argument("--short-bundle-dir", type=Path, help="Verified installed SenseVoice model and CLI directory")
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
     if not arguments.model_path.is_dir():
         parser.error("--model-path must be an existing directory")
-    report = measure(arguments.manifest, arguments.model_path)
+    if arguments.provider == "local-routed" and not arguments.short_bundle_dir:
+        parser.error("--short-bundle-dir is required for the routed candidate benchmark")
+    report = measure(arguments.manifest, arguments.model_path, provider=arguments.provider,
+                     short_bundle_dir=arguments.short_bundle_dir)
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Scored {report['sample_count']} audio files through /stt/transcribe: {arguments.output}")

@@ -60,6 +60,23 @@ class HoldoutTests(unittest.TestCase):
             self.assertEqual(len(metadata["manifest_sha256"]), 64)
             self.assertEqual(json.loads(output.read_text(encoding="utf-8"))["speaker"], "S0002")
 
+    def test_cli_can_exclude_a_smoke_inspected_recording_without_excluding_its_speaker(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            candidate = root / "candidate.jsonl"
+            rows = [{"id": identifier, "source": "aishell-1", "split": "train", "speaker": "S0012",
+                     "reference": "你好", "source_audio_sha256": identifier, "audio_path": f"C:/{identifier}.wav"}
+                    for identifier in ("a", "b")]
+            candidate.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
+            output, lock = root / "holdout.jsonl", root / "holdout.lock.json"
+            result = subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / "scripts" / "build_holdout.py"),
+                                     "--candidate", str(candidate), "--exclude-id", "a", "--count", "1",
+                                     "--output", str(output), "--lock", str(lock), "--source-revision", "revision"],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(output.read_text(encoding="utf-8"))["id"], "b")
+            self.assertEqual(json.loads(lock.read_text(encoding="utf-8"))["excluded_ids"], ["a"])
+
 
 if __name__ == "__main__":
     unittest.main()

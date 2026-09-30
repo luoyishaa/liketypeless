@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "version": "0.1.0-rc.3",
+  "test_layer": "pyinstaller_packaged_backend_http",
+  "backend_executable_sha256": "7e5eab3029a698ffbb09afd153dbdb26d85cdd59f942f208df2ffd6ae4a4c7f2",
+  "machine": "Windows 11 10.0.26200; Intel Core i7-14650HX; NVIDIA GeForce RTX 5060 Laptop GPU; Whisper CUDA float16; SenseVoice CPU",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "audio_source": "publisher AISHELL-1 train, disjoint speakers",
+  "model_versions": {
+    "whisper": "small / beam=1",
+    "sensevoice_gguf_revision": "90c1c61912018b70ada0fcc024ea24aca62f2e63",
+    "funasr_runtime_tag": "runtime-llamacpp-v0.2.6"
+  },
+  "cold_warm_policy": "No explicit warmup; first request separately reported; later requests warmed.",
+  "cohorts": [
+    {
+      "cohort": "short",
+      "sample_count": 100,
+      "speaker_count": 11,
+      "portable_manifest_sha256": "4e0c95cac242bfcdfc2198d1b79d5605b5e27229aef004fd8036c9fd09009b96",
+      "route_threshold_seconds": 4.0,
+      "reference_characters": 700,
+      "whisper": {
+        "character_errors": 139,
+        "raw_asr_cer": 0.198571,
+        "request_latency_ms": {
+          "first": 12352.667,
+          "p50": 113.242,
+          "p95": 129.772,
+          "max": 12352.667
+        }
+      },
+      "routed": {
+        "character_errors": 62,
+        "raw_asr_cer": 0.088571,
+        "sensevoice_samples": 99,
+        "request_latency_ms": {
+          "first": 801.432,
+          "p50": 736.486,
+          "p95": 833.791,
+          "max": 4506.301
+        }
+      },
+      "paired_gain": {
+        "cer_points": 0.11,
+        "relative_error_reduction": 0.553957,
+        "speaker_bootstrap_95_cer_points": [
+          0.082171,
+          0.138187
+        ]
+      }
+    },
+    {
+      "cohort": "read",
+      "sample_count": 300,
+      "speaker_count": 10,
+      "portable_manifest_sha256": "8bd29d9f203779abe38a3a9d7edac197ac2ddb99ed8d33e752c0faa7800a5360",
+      "route_threshold_seconds": 4.0,
+      "reference_characters": 4289,
+      "whisper": {
+        "character_errors": 613,
+        "raw_asr_cer": 0.142924,
+        "request_latency_ms": {
+          "first": 4175.778,
+          "p50": 144.369,
+          "p95": 198.136,
+          "max": 4175.778
+        }
+      },
+      "routed": {
+        "character_errors": 525,
+        "raw_asr_cer": 0.122406,
+        "sensevoice_samples": 129,
+        "request_latency_ms": {
+          "first": 4790.049,
+          "p50": 227.24,
+          "p95": 1053.325,
+          "max": 4790.049
+        }
+      },
+      "paired_gain": {
+        "cer_points": 0.020518,
+        "relative_error_reduction": 0.143556,
+        "speaker_bootstrap_95_cer_points": [
+          0.0118,
+          0.032763
+        ]
+      }
+    }
+  ],
+  "limitations": [
+    "Packaged backend, not NSIS-installed desktop or microphone-to-input latency.",
+    "No independent Windows host or cross-application input validation in this report."
+  ]
+}
