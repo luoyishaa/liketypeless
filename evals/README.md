@@ -27,6 +27,31 @@
 
 空指标一律为 `null`，绝不将缺失预测或推理异常按满分处理。比较脚本要求相同的 manifest 哈希、样本数和来源，并显示绝对与相对变化。自动安全违规率比基线升高，或出现基线中没有的新违规样本时失败；修好一条不能抵消另一条新增事实错误。
 
+## 产品路径的分层测量
+
+语音识别、文字整理和桌面输入分别计量，不能把任一层的耗时或正确率称为整机效果。
+
+`benchmark_asr_api.py` 将同一份已准备的音频清单逐条交给产品的认证 `/stt/transcribe` 接口，保存原始转写、音频校验值、整体接口请求 P50/P95 与原始 CER。需显式给出已验证的本地模型目录；脚本隔离会话数据，不暖机。它测的是音频文件至接口响应，不是麦克风到输入框。
+
+```powershell
+.\.venv-release\Scripts\python.exe evals/scripts/benchmark_asr_api.py --manifest evals/local/public-asr-manifest.jsonl --model-path "$env:APPDATA\liketypeless\models\small" --output evals/local/product-asr-api.json
+```
+
+固定文字输入的成对实验使用产品 `/llm/structure` 接口；`basic` 为本地规则整理，`enhanced` 为可选 Ollama 整理。两者都与原始输入分列，模型不可用或超时的结果计入 `fallback_count`，不计入模型成功。脚本记录运行环境、模型在开始时是否已加载、各模式 P50/P95、相对基础模式的输出变化数、保护词召回和有限的自动违规检查。`model_start_state=loaded` 与 `not_loaded` 不应混为一个延迟分布。
+
+```powershell
+.\.venv-release\Scripts\python.exe evals/scripts/benchmark_cleanup_modes.py --manifest evals/fixtures/high-risk-text.jsonl --output evals/local/product-modes.json --enhanced
+```
+
+桌面输入试验使用 [CSV 模板](fixtures/desktop-trials-template.csv)，每次试验填写目标应用（`notepad`、`browser`、`word`）、整理模式（`basic`、`enhanced`）、预期口述、原始识别、最终文字和结果。`outcome=direct` 仅用于确认文字出现在目标输入框；`manual_copy` 为结果可找回但未直接输入；`wrong_target` 和 `lost` 分别标记误入其他窗口与不可恢复丢失。`stop_to_usable_ms` 从停止录音到文字可用，不含录音时长；直接输入与手动复制分开统计。`correction_edits` 是完成目标文字所需的人工修正次数，`critical_fact_changed` 标注日期、数字、否定等关键事实变化。识别为空时保留空 `raw_transcript`，CER 按完整删除错误计算。
+
+```powershell
+Copy-Item evals/fixtures/desktop-trials-template.csv evals/local/desktop-trials.csv
+.\.venv-release\Scripts\python.exe evals/scripts/summarize_desktop_trials.py --trials evals/local/desktop-trials.csv --output evals/local/desktop-trials-summary.json
+```
+
+汇总要求三个目标应用各至少 20 条才判断桌面发布门槛；直接输入比例至少 `59/60`，误入其他窗口与不可恢复丢失均为零。样本不足时 `release_gate.passed=null`，不能解释为通过。CSV 是观察记录，不是自动化粘贴确认；原始口述文本和输入结果仅放在忽略的 `evals/local/`。
+
 ## 复现
 
 先安装：
