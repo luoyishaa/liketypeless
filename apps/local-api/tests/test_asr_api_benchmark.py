@@ -49,6 +49,7 @@ class AsrApiBenchmarkTests(unittest.TestCase):
             self.assertGreaterEqual(report["summary"]["request_latency_ms"]["first"], 0)
             self.assertGreaterEqual(report["summary"]["request_latency_ms"]["max"], 0)
             self.assertEqual(report["timing_scope"], "in_process_product_stt_route")
+            self.assertEqual(len(report["portable_manifest_sha256"]), 64)
 
 
 if __name__ == "__main__":

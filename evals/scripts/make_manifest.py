@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from evaluate import normalize
+
 
 def rank(identifier: str) -> str:
     return hashlib.sha256(f"20260924:{identifier}".encode()).hexdigest()
@@ -31,22 +33,29 @@ def choose(rows: list[dict[str, Any]], count: int, label: str, per_speaker: int 
     return sorted(selected, key=lambda item: item["id"])
 
 
-def aishell(root: Path, count: int) -> list[dict[str, Any]]:
+def aishell(root: Path, count: int, split: str = "test", max_reference_chars: int | None = None,
+            include_speakers: set[str] | None = None) -> list[dict[str, Any]]:
+    if split not in {"train", "dev", "test"}:
+        raise ValueError(f"Unsupported AISHELL-1 split: {split}")
+    if max_reference_chars is not None and max_reference_chars < 1:
+        raise ValueError("Maximum reference length must be positive")
     data = root / "data_aishell" if (root / "data_aishell").is_dir() else root
     transcript_file = data / "transcript" / "aishell_transcript_v0.8.txt"
-    test_root = data / "wav" / "test"
-    if not transcript_file.is_file() or not test_root.is_dir():
-        raise FileNotFoundError("AISHELL-1 requires data_aishell/transcript/aishell_transcript_v0.8.txt and extracted wav/test")
+    split_root = data / "wav" / split
+    if not transcript_file.is_file() or not split_root.is_dir():
+        raise FileNotFoundError(f"AISHELL-1 requires data_aishell/transcript/aishell_transcript_v0.8.txt and extracted wav/{split}")
     transcript = {}
     for line in transcript_file.read_text(encoding="utf-8").splitlines():
         if line.strip():
             identifier, text = line.strip().split(maxsplit=1)
             transcript[identifier] = text.replace(" ", "")
     rows = []
-    for path in test_root.rglob("*.wav"):
-        if path.stem in transcript:
+    for path in split_root.rglob("*.wav"):
+        if (path.stem in transcript
+                and (include_speakers is None or path.parent.name in include_speakers)
+                and (max_reference_chars is None or 0 < len(normalize(transcript[path.stem])) <= max_reference_chars)):
             rows.append({"id": f"aishell-1:{path.stem}", "audio_path": str(path.resolve()), "reference": transcript[path.stem],
-                         "source": "aishell-1", "split": "test", "speaker": path.parent.name, "tags": ["read"]})
+                         "source": "aishell-1", "split": split, "speaker": path.parent.name, "tags": ["read"]})
     return choose(rows, count, "AISHELL-1", per_speaker=max(1, (count + len({row['speaker'] for row in rows}) - 1) // max(len({row['speaker'] for row in rows}), 1)))
 
 
@@ -128,6 +137,9 @@ def wenetspeech(root: Path, net_count: int, meeting_count: int) -> list[dict[str
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--aishell-root", type=Path)
+    parser.add_argument("--aishell-split", choices=("train", "dev", "test"), default="test")
+    parser.add_argument("--aishell-max-reference-chars", type=int)
+    parser.add_argument("--aishell-speaker", action="append", help="Restrict AISHELL-1 to named speakers; repeat as needed")
     parser.add_argument("--common-voice-root", type=Path)
     parser.add_argument("--fleurs-root", type=Path)
     parser.add_argument("--wenetspeech-root", type=Path)
@@ -141,7 +153,9 @@ def main() -> None:
     args = parser.parse_args()
     rows: list[dict[str, Any]] = []
     if args.aishell_root:
-        rows += aishell(args.aishell_root, args.aishell_count)
+        rows += aishell(args.aishell_root, args.aishell_count, split=args.aishell_split,
+                        max_reference_chars=args.aishell_max_reference_chars,
+                        include_speakers=set(args.aishell_speaker) if args.aishell_speaker else None)
     if args.common_voice_root:
         rows += common_voice(args.common_voice_root, args.common_voice_count)
     if args.fleurs_root:

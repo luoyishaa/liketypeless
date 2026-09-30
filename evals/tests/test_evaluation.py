@@ -74,6 +74,44 @@ class EvaluationTests(unittest.TestCase):
             self.assertEqual(rows[0]["reference"], "你好")
             self.assertEqual(rows[0]["split"], "test")
 
+    def test_aishell_publisher_train_split_is_explicit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "data_aishell"
+            (root / "transcript").mkdir(parents=True)
+            speaker = root / "wav" / "train" / "S0002"
+            speaker.mkdir(parents=True)
+            (root / "transcript" / "aishell_transcript_v0.8.txt").write_text("BAC009S0002W0122 你 好\n", encoding="utf-8")
+            (speaker / "BAC009S0002W0122.wav").touch()
+            rows = aishell(Path(temporary), 1, split="train")
+            self.assertEqual(rows[0]["speaker"], "S0002")
+            self.assertEqual(rows[0]["split"], "train")
+
+    def test_aishell_short_stratum_filters_before_sampling(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "data_aishell"
+            (root / "transcript").mkdir(parents=True)
+            speaker = root / "wav" / "train" / "S0002"
+            speaker.mkdir(parents=True)
+            (root / "transcript" / "aishell_transcript_v0.8.txt").write_text(
+                "LONG0001 这是一个很长的句子\nSHORT001 你好\n", encoding="utf-8")
+            (speaker / "LONG0001.wav").touch()
+            (speaker / "SHORT001.wav").touch()
+            rows = aishell(Path(temporary), 1, split="train", max_reference_chars=4)
+            self.assertEqual(rows[0]["id"], "aishell-1:SHORT001")
+
+    def test_aishell_can_select_publisher_speakers_for_disjoint_strata(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "data_aishell"
+            (root / "transcript").mkdir(parents=True)
+            for speaker in ("S0002", "S0012"):
+                folder = root / "wav" / "train" / speaker
+                folder.mkdir(parents=True)
+                (folder / f"{speaker}.wav").touch()
+            (root / "transcript" / "aishell_transcript_v0.8.txt").write_text(
+                "S0002 你好\nS0012 再见\n", encoding="utf-8")
+            rows = aishell(Path(temporary), 1, split="train", include_speakers={"S0012"})
+            self.assertEqual(rows[0]["speaker"], "S0012")
+
     def test_common_voice_import_uses_test_tsv_and_speaker(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

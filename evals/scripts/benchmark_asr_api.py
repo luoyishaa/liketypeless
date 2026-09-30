@@ -20,6 +20,7 @@ from fastapi.testclient import TestClient
 API_ROOT = Path(__file__).resolve().parents[2] / "apps" / "local-api"
 sys.path.insert(0, str(API_ROOT))
 from evaluate import edit_distance, normalize, percentile, ratio, read_jsonl  # noqa: E402
+from build_holdout import portable_hash  # noqa: E402
 
 
 def measure(manifest_path: Path, model_path: Path | None = None) -> dict:
@@ -82,6 +83,7 @@ def measure(manifest_path: Path, model_path: Path | None = None) -> dict:
         "schema_version": 1,
         "timing_scope": "in_process_product_stt_route",
         "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+        "portable_manifest_sha256": portable_hash(samples),
         "runtime": runtime,
         "sample_count": len(rows),
         "summary": {
